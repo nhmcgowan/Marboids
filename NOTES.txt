@@ -1,0 +1,20 @@
+Bounty Score System:
+   x 1. Each enemy has a Value
+    2. The comboMeter gradually increases the score multiplier
+    3. MultiKills are kills in a single sweep, giving an instant 2x to the Value of the killed enemies
+
+NestSize: 
+    1. The amount of enemies left in the Nest.
+
+Special Ability:
+    1. Charge status
+    2. Icon
+
+Pause Button:
+    1. Pause Menu
+    2. Options Menu
+
+Bestiary:
+    1. Enemies are obscured until unlocked.
+
+

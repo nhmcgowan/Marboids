@@ -1,13 +1,14 @@
 import {
-  Character,
+  Player,
   Green,
   Blue,
   Orange,
   Yellow,
   Gray,
   Purple,
-} from "./CharacterClass.js";
-import { MainMenu, Win } from "./MainMenu.js";
+  Aqua,
+} from "./Entities.js";
+import { MainMenu, Win, Bestiary, GameOver } from "./Menus.js";
 
 export class Nest extends Phaser.Scene {
   constructor() {
@@ -30,11 +31,11 @@ export class Nest extends Phaser.Scene {
     //Bounty Score:
     this.score = 0;
     //amount of enemies possible on screen:
-    this.strength = 15  ;
+    this.strength = 15;
     //total enemies to defeat:
-    this.nestSize = 10;
+    this.nestSize = 25;
     //Difficulty scaler:
-    this.scaler = 3000; //time between enemies spawning (milliseconds)
+    this.scaler = 2500; //time between enemies spawning (milliseconds)
     //Amount of enemies on screen:
     this.activeEnemies = 1;
     //threat level, number of high threat enemies
@@ -50,7 +51,10 @@ export class Nest extends Phaser.Scene {
     this.load.image("enemyYellow", "./assets/enemyYellow.png");
     this.load.image("yellowDead", "./assets/yellowDead.png");
     this.load.image("enemyGray", "./assets/enemyGray.png");
+    this.load.image("grayDamaged", "./assets/grayDamaged.png");
     this.load.image("enemyPurple", "./assets/enemyPurple.png");
+    this.load.image("enemyAqua", "./assets/enemyAqua.png");
+    this.load.image("enemyAqua-attack", "./assets/enemyAqua-attack.png");
 
     //Atlases:
     //One for each enemy
@@ -60,12 +64,12 @@ export class Nest extends Phaser.Scene {
   /* SpawnEnemy/Nest Management v2:
     A. limit the number of certain high threat enemies on the screen
     B. Gradually add more difficult enemies to the spawn pool
-    C. Iterate down Nest.strength per enemy Killed
+    C. 
  */
   spawnEnemy() {
     if (this.activeEnemies < this.strength) {
       const width = 900,
-        height = 700,
+        height = 750,
         margin = 32,
         speed = 200;
       let x, y, angleCenter, enemy;
@@ -98,8 +102,9 @@ export class Nest extends Phaser.Scene {
         angleCenter - spread,
         angleCenter + spread
       );
-      //Spawn the enemy and add them to the enemies group
-      let chance = Phaser.Math.Between(0, 5);
+      //Spawn odds seed:
+      let chance = Phaser.Math.Between(0, 8);
+      //Spawn Pool:
       if (chance === 0) {
         enemy = new Blue(this, x, y);
       } else if (chance === 1) {
@@ -110,14 +115,16 @@ export class Nest extends Phaser.Scene {
         enemy = new Gray(this, x, y);
       } else if (chance === 4) {
         enemy = new Purple(this, x, y);
+      } else if (chance === 5) {
+        enemy = new Aqua(this, x, y);
       } else {
         enemy = new Green(this, x, y);
       }
 
       enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
       enemy.setRotation(angle);
-      if (enemy.state === "init") {
-        enemy.spawnAngle = angle;
+      if (enemy.machine.state === "init") {
+        enemy.init.spawnAngle = angle;
       }
 
       if (enemy.hitbox) {
@@ -128,19 +135,20 @@ export class Nest extends Phaser.Scene {
   }
 
   create() {
+    this.score = 0;
     this.matter.world.setBounds();
-    //Init Character Objects:
-    this.player = new Character(this, 400, 300);
+    //Init Player Objects:
+    this.player = new Player(this, 400, 300);
     //Click event listener:
     this.input.on("pointerdown", () => {
       if (
-        this.player.state === "moving" &&
-        this.player.attackTimer === 0 &&
-        this.player.state !== "attacking" &&
-        this.player.coolDown === 0
+        this.player.machine.state === "moving" &&
+        this.player.timers.attackTimer === 0 &&
+        this.player.machine.state !== "attacking" &&
+        this.player.timers.coolDown === 0
       ) {
-        this.player.state = "attacking";
-        this.player.attackTimer = 30;
+        this.player.machine.state = "attacking";
+        this.player.timers.attackTimer = 30;
       }
     });
     //Spawn Enemies:
@@ -196,29 +204,54 @@ export class Nest extends Phaser.Scene {
       hb.owner.onHit(p);
     });
     //UI elements:
-    this.scoreText = this.add.text(40, 16, "Score: " + this.score, {
-      fontSize: "14px",
-      fontFamily: "'Nunito Sans', sans-serif",
-      fontStle: "bold",
-      fill: "#db2450",
-    });
+    this.scoreText = this.add
+      .text(40, 16, "Score: " + this.score, {
+        fontSize: "20px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5);
 
-    this.events.on("playerDied", () => {
-      const highScore = this.registry.get("highScore") || 0;
-      if (this.score > highScore) {
-        this.registry.set("highScore", this.score);
-      }
-      this.score = 0;
+    this.enemiesLeft = this.add
+      .text(80, 32, "Marboids left: " + this.nestSize, {
+        fontSize: "20px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5);
+
+    const quit = this.add
+      .text(990, 16, "X", {
+        fontSize: "20px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5)
+      .setInteractive();
+    quit.on("pointerdown", () => {
       this.scene.start("MainMenu");
     });
-    this.events.on("win",   () => {
+    //ending events:
+    this.events.on("playerDied", () => {
+      this.registry.set("finalScore", this.score);
       const highScore = this.registry.get("highScore") || 0;
       if (this.score > highScore) {
         this.registry.set("highScore", this.score);
       }
-      this.score = 0;
+      this.scene.start("GameOver");
+    });
+    this.events.on("win", () => {
+      this.registry.set("finalScore", this.score);
+
+      const highScore = this.registry.get("highScore") || 0;
+      if (this.score > highScore) {
+        this.registry.set("highScore", this.score);
+      }
       this.scene.start("Win");
-    })
+    });
   }
 
   update() {
@@ -234,9 +267,9 @@ export class Nest extends Phaser.Scene {
         // Despawn enemies if they leave play area:
         if (
           enemy.x < -margin ||
-          enemy.x > 900 + margin ||
+          enemy.x > 1000 + margin ||
           enemy.y < -margin ||
-          enemy.y > 700 + margin
+          enemy.y > 750 + margin
         ) {
           enemy.destroy();
         }
@@ -247,12 +280,19 @@ export class Nest extends Phaser.Scene {
   }
 }
 
+export class HUD extends Phaser.Scene {
+  constructor() {
+    super({ key: "HUD" });
+  }
+  create() {}
+}
+
 const config = {
   type: Phaser.AUTO,
   width: 1000,
-  height: 800,
-  backgroundColor: "2b2e36",
-  scene: [MainMenu, Nest, Win],
+  height: 750,
+  backgroundColor: "#444444",
+  scene: [MainMenu, Nest, HUD, Win, Bestiary, GameOver],
 };
 
 new Phaser.Game(config);
