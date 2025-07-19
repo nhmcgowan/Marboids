@@ -8,7 +8,7 @@ import {
   Purple,
   Aqua,
 } from "./Entities.js";
-import { MainMenu, Win, Bestiary, GameOver } from "./Menus.js";
+import { MainMenu, Win, Bestiary, Rewards, GameOver } from "./Menus.js";
 
 export class Nest extends Phaser.Scene {
   constructor() {
@@ -67,7 +67,7 @@ export class Nest extends Phaser.Scene {
     C. 
  */
   spawnEnemy() {
-    if (this.activeEnemies < this.strength) {
+    if (this.activeEnemies < this.strength && this.nestSize > 0) {
       const width = 900,
         height = 750,
         margin = 32,
@@ -96,14 +96,13 @@ export class Nest extends Phaser.Scene {
         y = Phaser.Math.Between(0, height);
         angleCenter = Math.PI;
       }
-
       const spread = Math.PI / 4;
       const angle = Phaser.Math.FloatBetween(
         angleCenter - spread,
         angleCenter + spread
       );
       //Spawn odds seed:
-      let chance = Phaser.Math.Between(0, 8);
+      let chance = 1; //Phaser.Math.Between(0, 8);
       //Spawn Pool:
       if (chance === 0) {
         enemy = new Blue(this, x, y);
@@ -120,18 +119,59 @@ export class Nest extends Phaser.Scene {
       } else {
         enemy = new Green(this, x, y);
       }
-
       enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
       enemy.setRotation(angle);
       if (enemy.machine.state === "init") {
         enemy.init.spawnAngle = angle;
       }
-
       if (enemy.hitbox) {
         this.hitboxes.add(enemy.hitbox);
       }
       this.enemies.add(enemy);
     }
+  }
+
+  scorePopup(x, y, value) {
+    const popup = this.add
+      .text(x, y, `+${value}`, {
+        fontSize: "20px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#000000",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.tweens.add({
+      targets: popup,
+      y: y - 40,
+      alpha: 0,
+      duration: 1500,
+      ease: "Cubic.easeOut",
+      onComplete: () => popup.destroy(),
+    });
+  }
+
+  save() {
+    const registryData = this.registry.values;
+    localStorage.setItem("marboidsSave", JSON.stringify(registryData));
+  }
+
+  setHiScore() {
+    this.registry.set("finalScore", this.score);
+    this.setCurrency(this.score);
+    const highScore = this.registry.get("highScore") || 0;
+    if (this.score > highScore) {
+      this.registry.set("highScore", this.score);
+    }
+    this.save();
+  }
+
+  setCurrency(addition) {
+    console.log(addition)
+    const currency = this.registry.get("currency") || 0;
+    console.log(currency)
+    this.registry.set("currency", currency + addition);
+    console.log("total: ", this.registry.get("currency"))
   }
 
   create() {
@@ -180,7 +220,6 @@ export class Nest extends Phaser.Scene {
     });
     //init enemy hitboxes:
     this.hitboxes = this.physics.add.group();
-
     //Player Collisions:
     this.physics.add.collider(this.player, this.enemies, (player, enemy) => {
       player.onCollide(enemy);
@@ -195,11 +234,10 @@ export class Nest extends Phaser.Scene {
     this.physics.add.overlap(this.player.hitboxes, this.enemies, (hb, e) => {
       this.player.onHit(e);
     });
-
+    //Enemy hitbox collision:
     this.physics.add.overlap(this.hitboxes, this.enemies, (hb, e) => {
       hb.owner.onHit(e);
     });
-
     this.physics.add.overlap(this.player, this.hitboxes, (p, hb) => {
       hb.owner.onHit(p);
     });
@@ -234,22 +272,15 @@ export class Nest extends Phaser.Scene {
     quit.on("pointerdown", () => {
       this.scene.start("MainMenu");
     });
+
     //ending events:
-    this.events.on("playerDied", () => {
-      this.registry.set("finalScore", this.score);
-      const highScore = this.registry.get("highScore") || 0;
-      if (this.score > highScore) {
-        this.registry.set("highScore", this.score);
-      }
+    this.events.once("playerDied", () => {
+      this.setHiScore();
       this.scene.start("GameOver");
     });
-    this.events.on("win", () => {
-      this.registry.set("finalScore", this.score);
 
-      const highScore = this.registry.get("highScore") || 0;
-      if (this.score > highScore) {
-        this.registry.set("highScore", this.score);
-      }
+    this.events.once("win", () => {
+      this.setHiScore();
       this.scene.start("Win");
     });
   }
@@ -292,7 +323,6 @@ const config = {
   width: 1000,
   height: 750,
   backgroundColor: "#444444",
-  scene: [MainMenu, Nest, HUD, Win, Bestiary, GameOver],
+  scene: [MainMenu, Nest, HUD, Win, Bestiary, Rewards, GameOver],
 };
-
 new Phaser.Game(config);

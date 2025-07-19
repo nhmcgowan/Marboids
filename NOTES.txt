@@ -2,9 +2,11 @@ Bounty Score System:
    x 1. Each enemy has a Value
     2. The comboMeter gradually increases the score multiplier
     3. MultiKills are kills in a single sweep, giving an instant 2x to the Value of the killed enemies
+    4. Score pop up
 
 NestSize: 
-    1. The amount of enemies left in the Nest.
+   x 1. The amount of enemies left in the Nest.
+     2. hp bar for nest?
 
 Special Ability:
     1. Charge status
@@ -17,4 +19,23 @@ Pause Button:
 Bestiary:
     1. Enemies are obscured until unlocked.
 
+UI Assets:
+    1. Play Button
+    2. Bestiary Button
+    3. HiScore container
+    4. Achievment Icons, description boxes
+    5. Logo
+    6. Win/Loss Screen Summary
+    7. Rewards Store Items Icons, description boxes
+    8. BackGrounds
 
+Modes:
+    1. Bounty Mode: Keep up a combo meter as you fight endlessly.
+    2. Nest Run: Grind down a single nest, culminating in a boss fight.
+    3. Turbo Mode: All enemy types are available to spawn from the beginning, and enemies spawn more rapidly.
+
+Progression:
+    1. Earn coins for killing enemies and gems for defeating Nests and completing achievements.
+    2. Buy challenge contracts for special challenges with limited attempts.
+    3. Use coins to buy consumable items from the reward store.
+    4. Use gems to buy permanent or rechargable upgrades.

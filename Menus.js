@@ -7,8 +7,42 @@ export class MainMenu extends Phaser.Scene {
     this.highScore = 0;
   }
 
-  preload() {
-    this.load.image("startButton", "./assets/startButton.png");
+  init() {
+    const savedData = localStorage.getItem("marboidsSave");
+    if (savedData) {
+      const data = JSON.parse(savedData);
+      this.savedData = data; // Store the whole object for later use
+      for (const key in data) {
+        this.registry.set(key, data[key]);
+      }
+    } else {
+      this.savedData = {}; // Or null, if you prefer
+    }
+  }
+
+  preload() {}
+
+  addMenuHoverTween(target, originalY, offset = 20, duration = 1000) {
+    target.on("pointerover", () => {
+      this.tweens.killTweensOf(target);
+      this.tweens.add({
+        targets: target,
+        y: originalY - offset,
+        duration: duration,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    });
+    target.on("pointerout", () => {
+      this.tweens.killTweensOf(target);
+      this.tweens.add({
+        targets: target,
+        y: originalY,
+        duration: 200,
+        ease: "Sine.easeIn",
+      });
+    });
   }
 
   create() {
@@ -31,7 +65,7 @@ export class MainMenu extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5);
 
-    //Start Button
+    //Start Button:
     this.add
       .text(502, 302, "Play", {
         fontSize: "48px",
@@ -49,10 +83,6 @@ export class MainMenu extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
-    play.on("pointerdown", () => {
-      this.scene.start("Nest");
-    });
-
     //Bestiary:
     this.add
       .text(502, 402, "Bestiary", {
@@ -63,7 +93,7 @@ export class MainMenu extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5);
 
-    const Bestiary = this.add
+    const bestiary = this.add
       .text(500, 400, "Bestiary", {
         fontSize: "48px",
         fontFamily: "'Nunito Sans', sans-serif",
@@ -72,11 +102,53 @@ export class MainMenu extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
-    Bestiary.on("pointerdown", () => {
+    bestiary.on("pointerdown", () => {
       this.scene.start("Bestiary");
     });
 
-    const highScore = this.registry.get("highScore") || 0; // Default to 0 if no high score exists
+    this.add
+      .text(502, 502, "Rewards", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#000000",
+      })
+      .setOrigin(0.5, 0.5);
+    const rewards = this.add
+      .text(500, 500, "Rewards", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5)
+      .setInteractive();
+    rewards.on("pointerdown", () => {
+      this.scene.start("Rewards");
+    });
+
+    this.add
+      .text(502, 602, "Achievements", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#000000",
+      })
+      .setOrigin(0.5, 0.5);
+    const achievements = this.add
+      .text(500, 600, "Achievements", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5)
+      .setInteractive();
+    achievements.on("pointerdown", () => {
+      this.scene.start("Achievements");
+    });
+
+    const highScore = this.registry.get("highScore") || 0;
     this.add
       .text(152, 202, `High Score: ${highScore}`, {
         fontSize: "32px",
@@ -93,6 +165,12 @@ export class MainMenu extends Phaser.Scene {
         fill: "#db2450",
       })
       .setOrigin(0.5, 0.5);
+
+    //hoverAnim:
+    this.addMenuHoverTween(play, play.y);
+    this.addMenuHoverTween(bestiary, bestiary.y);
+    this.addMenuHoverTween(rewards, rewards.y);
+    this.addMenuHoverTween(achievements, achievements.y);
   }
 }
 
@@ -123,7 +201,7 @@ export class Win extends Phaser.Scene {
     });
 
     const menu = this.add
-      .text(500,500, "Main Menu", {
+      .text(500, 500, "Main Menu", {
         fontSize: "24px",
         fontFamily: "'Nunito Sans', sans-serif",
         fontStyle: "bold",
@@ -178,6 +256,61 @@ export class Bestiary extends Phaser.Scene {
   }
 }
 
+export class Rewards extends Phaser.Scene {
+  constructor() {
+    super({
+      key: "Rewards",
+    });
+  }
+
+  create() {
+    const backButton = this.add
+      .text(50, 50, "<", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5)
+      .setInteractive();
+    backButton.on("pointerdown", () => {
+      this.scene.start("MainMenu");
+    });
+    this.add
+      .text(502, 102, "Rewards:", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#000000",
+      })
+      .setOrigin(0.5, 0.5);
+    this.add
+      .text(500, 100, "Rewards:", {
+        fontSize: "48px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5);
+    this.add
+      .text(152, 202, `Reward Coins: ${this.registry.get("currency") || 0}`, {
+        fontSize: "28px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#000000",
+      })
+      .setOrigin(0.5, 0.5);
+    this.add
+      .text(150, 200, `Reward Coins: ${this.registry.get("currency") || 0}`, {
+        fontSize: "28px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5);
+  }
+}
+
 export class GameOver extends Phaser.Scene {
   constructor() {
     super({
@@ -193,14 +326,6 @@ export class GameOver extends Phaser.Scene {
         fill: "#db2450",
       })
       .setOrigin(0.5, 0.5);
-    this.tweens.add({
-      targets: loseText,
-      y: loseText.y - 20,
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
-    });
 
     const menu = this.add
       .text(500, 500, "Main Menu", {
@@ -223,7 +348,31 @@ export class GameOver extends Phaser.Scene {
         fill: "#db2450",
       })
       .setOrigin(0.5, 0.5);
+
+    const highScore = this.registry.get("highScore") || 0;
+    const hsPopup = this.add
+      .text(582, 400, `New High Score!`, {
+        fontSize: "16px",
+        fontFamily: "'Nunito Sans', sans-serif",
+        fontStyle: "bold",
+        fill: "#db2450",
+      })
+      .setOrigin(0.5, 0.5)
+      .setRotation(Math.PI / 6);
+
+    if (finalScore === highScore) {
+      hsPopup.visible = true;
+    } else {
+      hsPopup.visible = false;
+    }
+
+    this.tweens.add({
+      targets: [loseText, hsPopup],
+      y: (target) => target.y - 20,
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
   }
 }
-
-

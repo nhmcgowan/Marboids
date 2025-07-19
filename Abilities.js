@@ -43,14 +43,12 @@ export class Abilities {
     }
   }
 
-  leap(user) {
-    
-  }
-
   dumb() {}
 
   //Attacking Methods:
-  lunge() {}
+  blue() {}
 
+  aqua() {}
 
+  purple() {}
 }
