@@ -35,7 +35,16 @@ Modes:
     3. Turbo Mode: All enemy types are available to spawn from the beginning, and enemies spawn more rapidly.
 
 Progression:
-    1. Earn coins for killing enemies and gems for defeating Nests and completing achievements.
+    1. Earn xp for killing enemies and gems for defeating Nests and completing achievements/challenges
     2. Buy challenge contracts for special challenges with limited attempts.
-    3. Use coins to buy consumable items from the reward store.
+    3. Use xp to buy consumable items from the reward store.
     4. Use gems to buy permanent or rechargable upgrades.
+
+Achievement List:
+
+Tiers: Common, Uncommon, Rare, Legendary, Exotic
+
+Categories: 
+    1. Combat Basic (killing x number of enemy type, 1, 10, 50, 100, ect..)
+    2. Combat Advanced (Combos, clearing nests, destroying projectiles)
+

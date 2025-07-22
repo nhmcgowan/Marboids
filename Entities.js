@@ -30,6 +30,7 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
       coolDown = 0,
       initFrames = 5,
       corpseTimer = 300,
+      dying = false,
     } = {}
   ) {
     super(scene, x, y, texture);
@@ -53,6 +54,7 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
       substate: substate,
       effect: effect,
       invulnerable: invulnerable,
+      dying: dying,
     };
     this.meta = {
       threat: threat,
@@ -68,21 +70,27 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
   }
 
   deathAnim() {
-    this.body.enable = false;
-    this.setVelocity(0, 0);
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0,
-      duration: 1500,
-      ease: "Cubic.easeOut",
-      onComplete: () => {
-        if (this instanceof Player) {
-          this.scene.events.emit("playerDied");
-        } else {
-          this.destroy();
-        }
-      },
-    });
+    if (this.machine.dying === false) {
+      this.machine.dying = true;
+      this.setVelocity(0, 0);
+      this.body.enable = false;
+      this.scene.tweens.add({
+        targets: this,
+        alpha: 0,
+        duration: 1500,
+        ease: "Cubic.easeOut",
+        onComplete: () => {
+          if (this instanceof Player) {
+            this.scene.events.emit("playerDied");
+          } else if (this instanceof Hitbox) {
+            this.scene.hitboxes.remove(this, true, true);
+            //this.hitbox = null;
+          } else {
+            this.destroy();
+          }
+        },
+      });
+    }
   }
 }
 
@@ -161,6 +169,7 @@ export class Player extends Entity {
   onHit(enemy) {
     //Deflect logic:
     if (
+      !(enemy instanceof Hitbox) &&
       enemy.machine.substate === "deflect" &&
       this.machine.state !== "stunned"
     ) {
@@ -170,16 +179,18 @@ export class Player extends Entity {
     }
     //Kill logic
     if (
-      enemy.machine.state !== "dead" &&
-      enemy.machine.invulnerable === false
+      (enemy.machine.state !== "dead" &&
+        enemy.machine.invulnerable === false) ||
+      (enemy instanceof Hitbox && enemy.owner instanceof Purple)
     ) {
       enemy.machine.state = "dead";
-      enemy.timers.effectTimer = 300;
-      //Handle scoring:
+      //Handle meta
       this.scene.score += enemy.meta.value;
       this.scene.nestSize--;
-      this.scene.scorePopup(enemy.x, enemy.y, enemy.meta.value);
-      this.scene.enemiesLeft.setText("Marboids Left: " + this.scene.nestSize);
+      if (this.scene.nestSize < 1000) {
+        this.scene.enemiesLeft.setText("Marboids Left: " + this.scene.nestSize);
+      }
+      this.scene.utility.scorePopup(enemy.x, enemy.y, enemy.meta.value);
       this.scene.scoreText.setText("Score " + this.scene.score);
       //handle clearNest:
       if (this.scene.nestSize <= 0 && this.scene.activeEnemies > 0) {
@@ -468,14 +479,16 @@ export class Orange extends Entity {
         }
         break;
       case "dead":
-        this.setVelocity(0, 0);
-        this.hitbox.setPosition(this.x, this.y);
-        this.hitbox.body.enable = true;
-        this.hitbox.visible = true;
-        this.timers.corpseTimer--;
-        if (this.timers.corpseTimer < 1) {
-          this.deathAnim();
-          this.hitbox.deathAnim();
+        if (this.hitbox && this.hitbox.machine.dying === false) {
+          this.setVelocity(0, 0);
+          this.hitbox.setPosition(this.x, this.y);
+          this.hitbox.body.enable = true;
+          this.hitbox.visible = true;
+          this.timers.corpseTimer--;
+          if (this.timers.corpseTimer < 1) {
+            this.hitbox.deathAnim();
+            this.deathAnim();
+          }
         }
         break;
     }
@@ -486,12 +499,12 @@ export class Yellow extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "enemyYellow", {
       state: "init",
-      effectTimer: 500,
     });
 
     //hitbox: (enabled on death)
-    this.hitbox = scene.physics.add.sprite(this.x, this.y, "yellowDead");
-    this.hitbox.body.setCircle(32);
+    this.hitbox = new Hitbox(this.scene, this.x, this.y, "yellowDead", {
+      setCircle: 32,
+    });
     this.hitbox.body.enable = false;
     this.hitbox.visible = false;
     this.hitbox.owner = this;
@@ -539,21 +552,23 @@ export class Yellow extends Entity {
         this.setRotation(angle);
         break;
       case "dead":
-        //place the hitbox over the enemy:
-        this.hitbox.setPosition(this.x, this.y);
-        //turn on hitbox:
-        this.hitbox.visible = true;
-        this.hitbox.body.enable = true;
-        this.hitbox.body.onOverlap = true;
-        //turn off enemy:
-        this.visible = false;
-        this.body.enable = false;
+        if (this.hitbox && this.hitbox.machine.dying === false) {
+          //place the hitbox over the enemy:
+          this.hitbox.setPosition(this.x, this.y);
+          //turn on hitbox:
+          this.hitbox.visible = true;
+          this.hitbox.body.enable = true;
+          this.hitbox.body.onOverlap = true;
+          //turn off enemy:
+          this.visible = false;
+          this.body.enable = false;
 
-        //count down to despawn:
-        this.timers.effectTimer--;
-        if (this.timers.effectTimer < 1) {
-          this.destroy();
-          this.hitbox.destroy();
+          //count down to despawn:
+          this.timers.corpseTimer--;
+          if (this.timers.corpseTimer < 1) {
+            this.deathAnim();
+            this.hitbox.deathAnim();
+          }
         }
         break;
     }
@@ -643,12 +658,12 @@ export class Purple extends Entity {
       turnRate: 0.005,
     });
     //Hitbox:
-    this.hitbox = scene.physics.add.sprite(this.x, this.y, "enemyBlue");
-    this.hitbox.setCircle(5);
+    this.hitbox = new Hitbox(scene, this.x, this.y, "purpleProjectile", {
+      setCircle: 5,
+    });
     this.hitbox.owner = this;
-    this.hitbox.visible = false;
 
-    //Custom Properties:
+    //custom properties:
   }
 
   onCollide(object) {
@@ -660,18 +675,28 @@ export class Purple extends Entity {
   onHit(object) {
     if (object.machine.state != "dead" && object != this) {
       object.machine.state = "dead";
-      this.hitbox.destroy();
     }
   }
 
   update(target) {
-    //slowed machine.substate:
-    if (this.machine.substate == "slowed" && this.timers.effectTimer > 0) {
-      this.movement.speed = 65;
-      this.timers.effectTimer--;
-    } else {
-      this.machine.substate = null;
-      this.movement.speed = 130;
+    //reload:
+    if (!this.hitbox) {
+      this.timers.coolDown = 120;
+      this.hitbox = new Hitbox(this.scene, this.x, this.y, "purpleProjectile", {
+        setCircle: 5,
+      });
+      this.hitbox.owner = this;
+      this.hitbox.machine.dying = false;
+      this.scene.hitboxes.add(this.hitbox);
+    }
+    //destroy hitbox:
+    if (
+      this.hitbox &&
+      this.hitbox.machine.state === "dead" &&
+      this.hitbox.machine.dying === false
+    ) {
+      this.hitbox.deathAnim();
+      this.hitbox = null;
     }
     //attach hitbox:
     if (this.hitbox) {
@@ -686,6 +711,18 @@ export class Purple extends Entity {
           Math.cos(this.rotation) * 200,
           Math.sin(this.rotation) * 200
         );
+      }
+      //slowed machine.substate:
+      if (
+        this.hitbox &&
+        this.machine.substate == "slowed" &&
+        this.timers.effectTimer > 0
+      ) {
+        this.movement.speed = 65;
+        this.timers.effectTimer--;
+      } else {
+        this.machine.substate = null;
+        this.movement.speed = 130;
       }
     }
 
@@ -768,8 +805,11 @@ export class Aqua extends Entity {
       value: 8,
     });
     //Hitbox:
-    this.hitbox = scene.physics.add.sprite(this.x, this.y, "enemyAqua-attack");
-    this.hitbox.setCircle(32);
+    this.hitbox = new Hitbox(this.scene, this.x, this.y, "enemyAqua-attack", {
+      setCircle: 32,
+      invulnerable: true,
+      substate: "deflect",
+    });
     this.hitbox.owner = this;
     this.hitbox.visible = false;
     this.hitbox.body.checkCollision.none = true;
@@ -786,7 +826,7 @@ export class Aqua extends Entity {
       this.rotation += Math.PI / 2;
     }
   }
-
+  z;
   onHit(object) {
     if (
       object.machine.state != "dead" &&
@@ -853,8 +893,7 @@ export class Aqua extends Entity {
 
         break;
       case "dead":
-        this.hitbox.destroy();
-        this.destroy();
+        this.deathAnim();
         break;
     }
   }
