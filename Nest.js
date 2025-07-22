@@ -1,5 +1,5 @@
 import { MainMenu, Win, Bestiary, Rewards, GameOver } from "./Menus.js";
-import { Util } from "./util.js";
+import { Util } from "./Util.js";
 import { Player } from "./Entities.js";
 
 export class Nest extends Phaser.Scene {

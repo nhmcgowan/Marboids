@@ -1,4 +1,4 @@
-import { Util } from "./util.js";
+import { Util } from "./Util.js";
 export class MainMenu extends Phaser.Scene {
   constructor() {
     super({
