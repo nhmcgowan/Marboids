@@ -1,17 +1,36 @@
-import { Green, Blue, Orange, Yellow, Gray, Purple, Aqua } from "./Entities.js";
+import {
+  Green,
+  Blue,
+  Orange,
+  Yellow,
+  Gray,
+  Purple,
+  Aqua,
+  Olive,
+} from "./Entities.js";
 
 export class Util {
   constructor(scene) {
     this.scene = scene;
+    this.uiReady = false;
+  }
+  debug(targets = []) {
+    targets.forEach((target) => {
+      const debugGraphics = this.scene.add.graphics();
+      debugGraphics.lineStyle(2, 0xff0000, 1); // Red outline
+      const bounds = target.getBounds();
+      debugGraphics.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      debugGraphics.fillStyle(0xff0000, 1);
+      debugGraphics.fillCircle(target.x, target.y, 2);
+    });
   }
   //UI:
   scorePopup(x, y, value) {
     const popup = this.scene.add
-      .text(x, y, `+${value}`, {
-        fontSize: "20px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+      .text(x, y, `฿${value}`, {
+        fontSize: "24px",
+        fontFamily: "VT323, monospace",
+        fill: "#ffffff",
       })
       .setOrigin(0.5, 0.5);
     popup.setDepth(1);
@@ -26,57 +45,85 @@ export class Util {
   }
 
   ui() {
-    this.scene.scoreText = this.scene.add
-      .text(40, 16, "Score: " + this.scene.score, {
-        fontSize: "20px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
+    if (this.scene.scoreText) this.scene.scoreText.destroy();
+    if (this.scene.enemiesLeft) this.scene.enemiesLeft.destroy();
+    if (this.scene.quit) this.scene.quit.destroy();
+    if (this.scene.healthBar) this.scene.healthBar.destroy();
+    this.uiReady = false;
+    this.popup = false;
+    WebFont.load({
+      google: {
+        families: ["VT323"],
+      },
+      active: () => {
+        this.scene.scoreText = this.scene.add
+          .text(50, 28, "00", {
+            fontSize: "30px",
+            fontFamily: "VT323, monospace",
+            fill: "#24c50a",
+          })
+          .setOrigin(0.5, 0.5);
 
-    this.scene.enemiesLeft = this.scene.add
-      .text(80, 32, "Marboids left: " + this.scene.nestSize, {
-        fontSize: "20px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
-    if (this.scene.nestSize > 1000) {
-      this.scene.enemiesLeft.setStyle({ fontSize: "32px" });
-      this.scene.enemiesLeft.setText("∞");
-    }
+        this.scene.enemiesLeft = this.scene.add
+          .text(500, 32, `${this.scene.nestSize}`, {
+            fontSize: "30px",
+            fontFamily: "VT323, monospace",
+            fill: "#24c50a",
+          })
+          .setOrigin(0.5, 0.5);
 
-    const quit = this.scene.add
-      .text(990, 16, "X", {
-        fontSize: "20px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5)
-      .setInteractive();
-    quit.on("pointerdown", () => {
-      this.scene.start("MainMenu");
+        this.scene.quit = this.scene.add
+          .text(980, 16, "X", {
+            fontSize: "48px",
+            fontFamily: "VT323, monospace",
+            fontStyle: "bold",
+            fill: "#24c50a",
+          })
+          .setOrigin(0.5, 0.5)
+          .setInteractive();
+        const esc = this.scene.input.keyboard.addKey(
+          Phaser.Input.Keyboard.KeyCodes.ESC
+        );
+        esc.on("down", () => {
+          this.scene.scene.start("MainMenu");
+        });
+        this.scene.quit.on("pointerdown", () => {
+          this.scene.scene.start("MainMenu");
+        });
+        this.scene.quit.setDepth(1);
+        this.scene.enemiesLeft.setDepth(1);
+        this.scene.scoreText.setDepth(1);
+        this.scene.healthBar = this.scene.add.graphics();
+        const barWidth = this.scene.nestSize;
+        const gameWidth = this.scene.sys.game.config.width; // or just 1000 if hardcoded
+        const x = (gameWidth - barWidth) / 2;
+
+        this.scene.healthBar.setPosition(x, 0);
+        this.scene.enemiesLeft.setPosition(x - 4, 22);
+        this.uiReady = true;
+      },
     });
-    quit.setDepth(1);
-    this.scene.enemiesLeft.setDepth(1);
-    this.scene.scoreText.setDepth(1);
-    this.scene.healthBar = this.scene.add.graphics();
-    const barWidth = this.scene.nestSize * 3;
-    const gameWidth = this.scene.sys.game.config.width; // or just 1000 if hardcoded
-    const x = (gameWidth - barWidth) / 2;
-
-    this.scene.healthBar.setPosition(x, 0);
   }
 
   uiUpdate() {
+    if (
+      !this.uiReady ||
+      !this.scene.healthBar ||
+      !this.scene.scoreText ||
+      !this.scene.enemiesLeft
+    )
+      return;
     this.scene.healthBar.clear();
-    if (this.scene.nestSize < 1000) {
-      this.scene.healthBar.fillStyle(0x4a8525);
-      this.scene.healthBar.fillRect(15, 15, this.scene.nestSize * 3, 15);
+    if (this.scene.nestSize < 500) {
+      this.scene.healthBar.fillStyle(0x24c50a);
+      this.scene.healthBar.fillRect(15, 15, this.scene.nestSize, 15);
+      this.scene.enemiesLeft.setText(this.scene.nestSize);
+    } else {
+      this.scene.enemiesLeft.setStyle({ fontSize: 48 });
+      this.scene.enemiesLeft.setPosition(500, 22);
+      this.scene.enemiesLeft.setText("∞");
     }
+    this.scene.scoreText.setText("฿: " + this.scene.score);
   }
 
   //Spawn/Despawn Enemies:
@@ -84,36 +131,28 @@ export class Util {
   /* SpawnEnemy/Nest Management v2:
     A. limit the number of certain high threat enemies on the screen
     B. Gradually add more difficult enemies to the spawn pool
+    C. Make some enemies rarer than others
  */
-  spawnEnemy() {
+  spawnEnemy(width = 900, height = 750, margin = 32) {
     if (
       this.scene.activeEnemies < this.scene.strength &&
       this.scene.nestSize > 0
     ) {
-      const width = 900,
-        height = 750,
-        margin = 32,
-        speed = 200;
       let x, y, angleCenter, enemy;
-      // Pick a random edge and set spawn position and general direction
       const edge = Phaser.Math.Between(0, 3);
       if (edge === 0) {
-        // Top
         x = Phaser.Math.Between(0, width);
         y = -margin;
         angleCenter = Math.PI / 2;
       } else if (edge === 1) {
-        // Bottom
         x = Phaser.Math.Between(0, width);
         y = height + margin;
         angleCenter = -Math.PI / 2;
       } else if (edge === 2) {
-        // Left
         x = -margin;
         y = Phaser.Math.Between(0, height);
         angleCenter = 0;
       } else {
-        // Right
         x = width + margin;
         y = Phaser.Math.Between(0, height);
         angleCenter = Math.PI;
@@ -123,9 +162,8 @@ export class Util {
         angleCenter - spread,
         angleCenter + spread
       );
-      //Spawn odds seed:
+
       let chance = Phaser.Math.Between(0, 8);
-      //Spawn Pool:
       if (chance === 0) {
         enemy = new Blue(this.scene, x, y);
       } else if (chance === 1) {
@@ -138,9 +176,13 @@ export class Util {
         enemy = new Purple(this.scene, x, y);
       } else if (chance === 5) {
         enemy = new Aqua(this.scene, x, y);
+      } else if (chance === 6) {
+        enemy = new Green(this.scene, x, y);
+        //enemy = new Olive(this.scene, x, y);
       } else {
         enemy = new Green(this.scene, x, y);
       }
+      const speed = 200;
       enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
       enemy.setRotation(angle);
       if (enemy.machine.state === "init") {
@@ -163,12 +205,10 @@ export class Util {
     this.scene.time.addEvent({
       delay: 10000,
       callback: () => {
-        if (this.scene.scaler > 500) {
+        if (this.scene.scaler > 2000) {
           this.scene.scaler -= 500;
-          console.log("Updated scaler:", this.scene.scaler);
-
           // Recreate the spawn timer with the updated delay
-          this.scene.spawnTimer.remove(); // Remove the existing timer
+          this.scene.spawnTimer.remove();
           this.scene.spawnTimer = this.scene.time.addEvent({
             delay: this.scene.scaler,
             callback: () => this.spawnEnemy(),
@@ -237,7 +277,7 @@ export class Util {
     this.scene.player.update(target);
   }
 
-  //Colliders/ Enemy Updaters:
+  //Colliders:
   colliders() {
     this.scene.physics.add.collider(
       this.scene.player,

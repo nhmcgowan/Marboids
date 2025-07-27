@@ -1,4 +1,6 @@
-import { Util } from "./Util.js";
+import { MenuUtil } from "./MenuUtil.js";
+import { CRTPipeline } from "./CRTPipeline.js";
+
 export class MainMenu extends Phaser.Scene {
   constructor() {
     super({
@@ -9,8 +11,7 @@ export class MainMenu extends Phaser.Scene {
         },
       },
     });
-    this.utility = new Util(this);
-    
+    this.util = new MenuUtil(this);
   }
 
   init() {
@@ -26,9 +27,15 @@ export class MainMenu extends Phaser.Scene {
     }
   }
 
-  preload() {}
+  preload() {
+    this.load.script(
+      "webfont",
+      "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"
+    );
+    this.load.image("cursor", "./assets/cursor.png")
+  }
 
-  debugGraphics(target = []) {
+  debug(target = []) {
     const debugGraphics = this.add.graphics();
     debugGraphics.lineStyle(2, 0xff0000, 1); // Red outline
     const bounds = target.getBounds();
@@ -37,174 +44,147 @@ export class MainMenu extends Phaser.Scene {
     debugGraphics.fillCircle(target.x, target.y, 2);
   }
 
-  addMenuHoverTween(target) {
-    target.on("pointerover", () => {
-      this.tweens.killTweensOf(target);
-      this.tweens.add({
-        targets: target,
-        scale: 1.2,
-        duration: 200,
-        ease: "Sine.easeOut",
-      });
-    });
-
-    target.on("pointerout", () => {
-      this.tweens.killTweensOf(target);
-      this.tweens.add({
-        targets: target,
-        scale: 1,
-        duration: 200,
-        ease: "Sine.easeIn",
-      });
-    });
-    target.on("pointerdown", () => {
-      this.tweens.killTweensOf(target);
-      this.tweens.add({
-        targets: target,
-        scale: 1,
-        duration: 100,
-        yoyo: true,
-        ease: "Sine.easeIn",
-      });
-    });
-  }
-
   create() {
+    this.input.setDefaultCursor("url(assets/cursor.png), pointer");
+    this.cameras.main.setPostPipeline("crt");
+
     this.popup = false;
-    const title1 = this.add
-      .text(450, 100, "Vectoid", {
-        fontSize: "64px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "italic bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
+    WebFont.load({
+      google: {
+        families: ["VT323"],
+      },
+      active: () => {
+        // Add text after font is loaded
+        this.title1 = this.add.text(400, 100, "Vectoid", {
+          fontFamily: "VT323, monospace",
+          fontSize: "80px",
+          fill: "#24c50a",
+        });
 
-    const title2 = this.add
-      .text(title1.x + 180, 75, "Arena", {
-        fontSize: "32px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "italic bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
-    this.tweens.add({
-      targets: title2,
-      scale: 1.2,
-      duration: 200,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
+        this.title2 = this.add
+          .text(this.title1.x + 258, 115, "arena", {
+            fontSize: "32px",
+            fontFamily: "VT323, monospace",
+            fontStyle: "italic",
+            fill: "#24c50a",
+          })
+          .setOrigin(0.5, 0.5);
+        this.tweens.add({
+          targets: this.title2,
+          scale: 1.2,
+          duration: 200,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+
+        this.play = this.add
+          .text(600, 300, "Play", {
+            fontSize: "48px",
+            fontFamily: "VT323, monospace",
+
+            fill: "#24c50a",
+          })
+          .setInteractive();
+        this.play.on("pointerdown", () => {
+          if (this.popup === false) {
+            this.modeConfig();
+          } else {
+            this.closeConfig();
+          }
+        });
+
+        this.bestiary = this.add
+          .text(600, 400, "Bestiary", {
+            fontSize: "48px",
+            fontFamily: "VT323, monospace",
+            fill: "#24c50a",
+          })
+          .setInteractive();
+        this.bestiary.on("pointerdown", () => {
+          this.scene.start("Bestiary");
+        });
+
+        this.rewards = this.add
+          .text(600, 600, "Rewards", {
+            fontSize: "48px",
+            fontFamily: "VT323, monospace",
+            fill: "#24c50a",
+          })
+          .setInteractive();
+        this.rewards.on("pointerdown", () => {
+          this.scene.start("Rewards");
+        });
+
+        this.achievements = this.add
+          .text(600, 500, "Achievements", {
+            fontSize: "48px",
+            fontFamily: "VT323, monospace",
+
+            fill: "#24c50a",
+          })
+          .setInteractive();
+        this.achievements.on("pointerdown", () => {
+          this.scene.start("Achievements");
+        });
+
+        //hoverAnims:
+        this.util.addMenuHoverTween(this.play, this.play.y);
+        this.util.addMenuHoverTween(this.bestiary, this.bestiary.y);
+        this.util.addMenuHoverTween(this.rewards, this.rewards.y);
+        this.util.addMenuHoverTween(this.achievements, this.achievements.y);
+        this.statsBar();
+
+        this.info = this.add
+          .text(375, 500, "", {
+            fontSize: "30px",
+            fontFamily: "VT323, monospace",
+
+            fill: "#24c50a",
+          })
+          .setOrigin(0.5, 0.5);
+        this.info.visible = false;
+      },
     });
-
-    const play = this.add
-      .text(600, 300, "Play", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setInteractive();
-    play.on("pointerdown", () => {
-      if (this.popup === false) {
-        this.modeConfig();
-      } else {
-        this.closeConfig();
-      }
-    });
-
-    const bestiary = this.add
-      .text(600, 400, "Bestiary", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setInteractive();
-    bestiary.on("pointerdown", () => {
-      this.scene.start("Bestiary");
-    });
-
-    const rewards = this.add
-      .text(600, 600, "Rewards", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setInteractive();
-    rewards.on("pointerdown", () => {
-      this.scene.start("Rewards");
-    });
-
-    const achievements = this.add
-      .text(600, 500, "Achievements", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setInteractive();
-    achievements.on("pointerdown", () => {
-      this.scene.start("Achievements");
-    });
-    //hoverAnims:
-    this.addMenuHoverTween(play, play.y);
-    this.addMenuHoverTween(bestiary, bestiary.y);
-    this.addMenuHoverTween(rewards, rewards.y);
-    this.addMenuHoverTween(achievements, achievements.y);
-    this.statsBar();
-
-    this.easyInfo = this.add
-      .text(400, 500, "150 Enemies. EZ-PZ.", {
-        fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
-    this.easyInfo.visible = false;
   }
 
   statsBar() {
     const totalDeaths = this.registry.get("totalDeaths") || 0;
     const highScore = this.registry.get("highScore") || 0;
     const wins = this.registry.get("wins") || 0;
+    const bounty = this.registry.get("currency") || 0;
     this.hiScore = this.add.text(150, 200, `High Score: ${highScore}`, {
       fontSize: "32px",
-      fontFamily: "Consolas, 'Courier New', monospace",
-      fontStyle: "italic bold",
-      fill: "#4a8525",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
     });
 
     this.deaths = this.add.text(-50, 200, `Deaths: ${totalDeaths}`, {
       fontSize: "32px",
-      fontFamily: "Consolas, 'Courier New', monospace",
-      fontStyle: "italic bold",
-      fill: "#4a8525",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
     });
 
     this.wins = this.add.text(-210, 200, `Wins: ${wins}`, {
       fontSize: "32px",
-      fontFamily: "Consolas, 'Courier New', monospace",
-      fontStyle: "italic bold",
-      fill: "#4a8525",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
     });
 
-    this.statsArr = [this.hiScore, this.deaths, this.wins];
-
-    this.statsArr.forEach((stat) => {
-      this.physics.add.existing(stat);
-      stat.body.setVelocityX(100);
+    this.bounty = this.add.text(-410, 200, `Bounty: ${bounty}`, {
+      fontSize: "32px",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
     });
+
+    this.statsArr = [this.hiScore, this.deaths, this.wins, this.bounty];
+
+    this.util.scrollBar(this.statsArr);
   }
 
   update() {
-    this.statsArr.forEach((stat) => {
-      if (stat.x > 1000) {
-        stat.x = -200;
-      }
-    });
+    if (!this.statsArr) return;
+    this.util.scrollBarUpdate(this.statsArr);
   }
 
   closeConfig() {
@@ -225,42 +205,63 @@ export class MainMenu extends Phaser.Scene {
     const skirmish = this.add
       .text(0, -50, "Skirmish", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
     skirmish.on("pointerdown", () => {
       this.nestConfig();
       this.modeconFig.destroy();
+      this.info.visible = false;
+    });
+    skirmish.on("pointerover", () => {
+      this.info.setText("Single Bounty Run");
+      this.info.visible = true;
+    });
+    skirmish.on("pointerout", () => {
+      this.info.visible = false;
     });
 
     const endless = this.add
       .text(0, -0, "Endless", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
     endless.on("pointerdown", () => {
-      this.scene.start("Nest", {nestSize: 10000})
-    }); 
+      this.scene.start("Nest", { nestSize: 10000 });
+    });
+    endless.on("pointerover", () => {
+      this.info.setText("Good Luck");
+      this.info.visible = true;
+    });
+    endless.on("pointerout", () => {
+      this.info.visible = false;
+    });
 
-    const campaign = this.add
-      .text(0, 50, "Campaign", {
+    const challenge = this.add
+      .text(0, 50, "Challenges", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
-    campaign.on("pointerdown", () => {});
+    challenge.on("pointerdown", () => {
+      this.scene.start("challenge");
+    });
+    challenge.on("pointerover", () => {
+      this.info.setText("Opens the Challenges Menu");
+      this.info.visible = true;
+    });
+    challenge.on("pointerout", () => {
+      this.info.visible = false;
+    });
 
-    this.modeconFig.add([skirmish, endless, campaign]);
+    this.modeconFig.add([skirmish, endless, challenge]);
 
     this.modeconFig.list.forEach((child) => {
-      this.addMenuHoverTween(child);
+      this.util.addMenuHoverTween(child);
     });
   }
 
@@ -269,47 +270,60 @@ export class MainMenu extends Phaser.Scene {
     const easy = this.add
       .text(0, -50, "Easy", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
     easy.on("pointerdown", () => {
       this.scene.start("Nest", { nestSize: 150 });
     });
     easy.on("pointerover", () => {
-      this.easyInfo.visible = true;
+      this.info.setText("150");
+      this.info.visible = true;
     });
     easy.on("pointerout", () => {
-      this.easyInfo.visible = false;
+      this.info.visible = false;
     });
     const med = this.add
       .text(0, 0, "Medium", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
     med.on("pointerdown", () => {
       this.scene.start("Nest", { nestSize: 250 });
     });
+    med.on("pointerover", () => {
+      this.info.setText("250");
+      this.info.visible = true;
+    });
+    med.on("pointerout", () => {
+      this.info.visible = false;
+    });
 
     const hard = this.add
       .text(0, 50, "Hard", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setInteractive();
     hard.on("pointerdown", () => {
       this.scene.start("Nest", { nestSize: 500 });
     });
+    hard.on("pointerover", () => {
+      this.info.setText("500");
+      this.info.visible = true;
+    });
+    hard.on("pointerout", () => {
+      this.info.visible = false;
+    });
+
     this.config.add([easy, med, hard]);
 
     this.config.list.forEach((child) => {
-      this.addMenuHoverTween(child);
+      this.util.addMenuHoverTween(child);
     });
   }
 
@@ -326,15 +340,17 @@ export class Win extends Phaser.Scene {
     super({
       key: "Win",
     });
+    this.util = new MenuUtil(this);
   }
 
   create() {
+    this.cameras.main.setPostPipeline("crt");
     const winText = this.add
       .text(500, 250, "Nest Destroyed", {
-        fontSize: "48px",
+        fontSize: "80px",
         fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "italic bold",
-        fill: "#4a8525",
+
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
 
@@ -350,9 +366,8 @@ export class Win extends Phaser.Scene {
     const menu = this.add
       .text(500, 500, "Main Menu", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
@@ -363,9 +378,8 @@ export class Win extends Phaser.Scene {
     this.add
       .text(500, 400, `Final Score: ${finalScore}`, {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
   }
@@ -379,21 +393,20 @@ export class Bestiary extends Phaser.Scene {
   }
 
   create() {
+    this.cameras.main.setPostPipeline("crt");
     this.add
       .text(500, 500, "-Bumper-", {
-        fontSize: "24px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontSize: "30px",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
 
     const backButton = this.add
       .text(100, 50, "<", {
         fontSize: "24px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
@@ -411,48 +424,41 @@ export class Rewards extends Phaser.Scene {
   }
 
   create() {
+    this.cameras.main.setPostPipeline("crt");
     const backButton = this.add
-      .text(50, 50, "<", {
+      .text(100, 50, "<", {
         fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
     backButton.on("pointerdown", () => {
       this.scene.start("MainMenu");
     });
+
     this.add
-      .text(502, 102, "Rewards:", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#000000",
+      .text(400, 100, "Rewards:", {
+        fontSize: "80px",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
-      .setOrigin(0.5, 0.5);
+
     this.add
-      .text(500, 100, "Rewards:", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
-      })
-      .setOrigin(0.5, 0.5);
-    this.add
-      .text(152, 202, `Reward Coins: ${this.registry.get("currency") || 0}`, {
+      .text(150, 200, `฿ounty Points: ${this.registry.get("currency") || 0}`, {
         fontSize: "28px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#000000",
+        fontFamily: "VT323, monospace",
+
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
+
     this.add
-      .text(150, 200, `Reward Coins: ${this.registry.get("currency") || 0}`, {
+      .text(150, 240, `€ems: 0`, {
         fontSize: "28px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
   }
@@ -462,24 +468,30 @@ export class GameOver extends Phaser.Scene {
   constructor() {
     super({
       key: "GameOver",
+      physics: {
+        arcade: {
+          debug: false,
+        },
+      },
     });
+    this.util = new MenuUtil(this);
   }
   create() {
+    this.cameras.main.setPostPipeline("crt");
     const loseText = this.add
-      .text(500, 250, "YOU DIED", {
-        fontSize: "48px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "italic bold",
-        fill: "#4a8525",
+      .text(375, 100, "YOU DIED", {
+        fontSize: "80px",
+        fontFamily: "VT323, monospace",
+
+        fill: "#24c50a",
       })
-      .setOrigin(0.5, 0.5);
+     
 
     const menu = this.add
       .text(500, 500, "Main Menu", {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5)
       .setInteractive();
@@ -490,9 +502,8 @@ export class GameOver extends Phaser.Scene {
     this.add
       .text(500, 400, `Final Score: ${finalScore}`, {
         fontSize: "30px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5);
 
@@ -500,9 +511,8 @@ export class GameOver extends Phaser.Scene {
     const hsPopup = this.add
       .text(582, 400, `New High Score!`, {
         fontSize: "16px",
-        fontFamily: "Consolas, 'Courier New', monospace",
-        fontStyle: "bold",
-        fill: "#4a8525",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
       })
       .setOrigin(0.5, 0.5)
       .setRotation(Math.PI / 6);
@@ -521,5 +531,78 @@ export class GameOver extends Phaser.Scene {
       repeat: -1,
       ease: "Sine.easeInOut",
     });
+
+    this.lose1 = this.add
+      .text(500, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose2 = this.add
+      .text(700, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose3 = this.add
+      .text(900, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose4 = this.add
+      .text(300, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose5 = this.add
+      .text(100, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose6 = this.add
+      .text(100, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.lose7 = this.add
+      .text(-200, 300, `...Game Over...`, {
+        fontSize: "32px",
+        fontFamily: "VT323, monospace",
+        fill: "#c50a0aff",
+      })
+      .setOrigin(0.5, 0.5);
+
+    this.arr = [
+      this.lose1,
+      this.lose2,
+      this.lose3,
+      this.lose4,
+      this.lose5,
+      this.lose6,
+      this.lose7,
+    ];
+    this.util.addMenuHoverTween(menu);
+    this.util.scrollBar(this.arr);
+  }
+
+  update() {
+    if (!this.arr) return;
+    this.util.scrollBarUpdate(this.arr);
   }
 }

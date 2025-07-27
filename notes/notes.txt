@@ -48,3 +48,110 @@ Categories:
     1. Combat Basic (killing x number of enemy type, 1, 10, 50, 100, ect..)
     2. Combat Advanced (Combos, clearing nests, destroying projectiles)
 
+  
+
+    export class Aqua extends Entity {
+  constructor(scene, x, y) {
+    super(scene, x, y, "enemyAqua", {
+      threat: 3,
+      turnRate: 0.02,
+      value: 8,
+    });
+    //Hitbox:
+    this.hitbox = new Hitbox(this.scene, this.x, this.y, "aquaHitbox", {
+      setCircle: 8,
+    });
+    this.hitbox.owner = this;
+    this.orbitAngle = 0;
+  }
+
+  onCollide(object) {
+    if (
+      object.machine.effect === "dead" &&
+      this.machine.invulnerable === false
+    ) {
+      this.machine.state = "dead";
+    }
+    if (this.machine.invulnerable === true) {
+      this.rotation -= Math.PI / 2;
+    }
+  }
+  onHit(object) {
+    if (
+      object.machine.state != "dead" &&
+      object != this &&
+      object.machine.invulnerable === false &&
+      object != this
+    ) {
+      object.machine.state = "dead";
+    }
+  }
+  update(target) {
+     if (this.hitbox) {
+      this.orbitAngle += 0.05;
+      this.distance = 10;
+      const circle = new Phaser.Geom.Circle(this.x, this.y, 10);
+      Phaser.Actions.PlaceOnCircle([this.hitbox], circle, this.orbitAngle);
+      if (this.timers.attackTimer > 0) {
+        const circle = new Phaser.Geom.Circle(this.x, this.y, 40);
+        Phaser.Actions.PlaceOnCircle([this.hitbox], circle, this.orbitAngle);
+        this.machine.invulnerable = true;
+        this.machine.substate = "deflect";
+        this.timers.attackTimer--;
+        this.movement.turnRate = 0.01;
+      } else {
+        const circle = new Phaser.Geom.Circle(this.x, this.y, 10);
+        Phaser.Actions.PlaceOnCircle([this.hitbox], circle, this.orbitAngle);
+        this.machine.invulnerable = false;
+        this.movement.turnRate = 0.02;
+      }
+    }
+ 
+    switch (this.machine.state) {
+      case "moving":
+        //targeting parameters: distance and angle:
+        const range = Phaser.Math.Distance.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+        const targetAngle = Phaser.Math.Angle.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+
+        let angleDiff = Phaser.Math.Angle.Wrap(targetAngle - this.rotation);
+        angleDiff = Math.abs(angleDiff);
+
+        if (range > 150 || angleDiff > Math.PI / 4) {
+          //slowly rotate towards targetAngle
+
+          this.rotation = Phaser.Math.Angle.RotateTo(
+            this.rotation,
+            targetAngle,
+            this.movement.turnRate
+          );
+          //go:
+          this.setVelocity(
+            Math.cos(this.rotation) * this.movement.speed,
+            Math.sin(this.rotation) * this.movement.speed
+          );
+        } else {
+          //deploy spines:
+          this.timers.attackTimer = 150;
+          this.machine.substate = "deflect";
+        }
+
+        break;
+      case "dead":
+        if (this.hitbox && this.hitbox.machine.dying === false) {
+          this.hitbox.deathAnim();
+        }
+        this.deathAnim();
+        break;
+    }
+  }
+}
