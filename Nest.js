@@ -1,7 +1,16 @@
-import { MainMenu, Win, Bestiary, Rewards, GameOver } from "./Menus.js";
+import {
+  MainMenu,
+  Win,
+  Bestiary,
+  Rewards,
+  GameOver,
+  Challenge,
+} from "./Menus.js";
 import { Util } from "./Util.js";
 import { Player } from "./Entities.js";
 import { CRTPipeline } from "./CRTPipeline.js";
+import { ShatterPipeline } from "./ShatterPipeline.js";
+import { AchievementManager, Achievements } from "./Achievements.js";
 
 export class Nest extends Phaser.Scene {
   constructor() {
@@ -10,7 +19,7 @@ export class Nest extends Phaser.Scene {
         key: "Nest",
         physics: {
           arcade: {
-            debug: false,
+            debug: true,
           },
           matter: {
             debug: false,
@@ -25,21 +34,97 @@ export class Nest extends Phaser.Scene {
     //Bounty Score:
     this.score = 0;
     //amount of enemies possible on screen:
-    this.strength = 15;
+    this.strength = 18;
     //total enemies to defeat:
     this.nestSize = data.nestSize;
-    //Interval between enemy spawn events (milliseconds):
-    this.scaler = 2000;
+    this.initSize = data.nestSize;
+    //Spawn system:
+    this.lastSpawn = 0;
+    this.spawnDelay = 5000;
     //Amount of enemies on screen:
     this.activeEnemies = 1;
-    //threat level, number of high threat enemies on screen
-    this.threat = 0;
-    //
+  }
+
+  create() {
+    this.utility = new Util(this);
+    this.Achievements = new AchievementManager(this);
+    this.input.mouse.disableContextMenu();
+    this.cameras.main.setPostPipeline("crt");
+    this.deadSound = this.sound.add("dead");
+    this.dodgeSound = this.sound.add("dodge");
+    this.dodgeSound.setVolume(1);
+    this.utility.ui();
+    const startRate = this.game.bgMusic.rate;
+    this.tweens.add({
+      targets: { rate: startRate },
+      rate: 1,
+      duration: 1000,
+      onUpdate: (tween) => {
+        this.game.bgMusic.setRate(tween.getValue());
+      },
+    });
+    this.fpsText = this.add.text(875, 0, "0", {
+      fontSize: "30px",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
+    });
+    this.player = new Player(this, 400, 300);
+    this.enemies = this.physics.add.group();
+    this.utility.attackListener();
+    this.hitboxes = this.physics.add.group();
+    this.utility.colliders();
+    this.utility.endingEvents();
+  }
+
+  update(time) {
+    this.utility.uiUpdate();
+    this.utility.playerUpdate();
+    this.utility.enemyUpdate();
+    this.utility.entityCleanUp();
+    this.activeEnemies = this.enemies.countActive(true);
+    this.fpsText.setText("fps:" + Math.floor(this.game.loop.actualFps));
+    this.utility.spawnTimer(time);
+  }
+}
+
+export class Launch extends Phaser.Scene {
+  constructor() {
+    super({
+      key: "Launch",
+    });
   }
 
   preload() {
-    //Convert this into JSON load statement
-    //this.load.audio("music", "./assets/music.mp3");
+    // Create loading bar graphics
+    const width = this.cameras.main.width;
+    const height = this.cameras.main.height;
+    const barWidth = 300;
+    const barHeight = 15;
+    const barX = width / 2 - barWidth / 2;
+    const barY = height / 2 - barHeight / 2;
+    const progressBar = this.add.graphics();
+    progressBar.setPostPipeline("crt");
+
+    // Listen to progress event
+    this.load.on("progress", (value) => {
+      progressBar.clear();
+      progressBar.fillStyle(0x24c50a, 1);
+      progressBar.fillRect(barX, barY, barWidth * value, barHeight);
+    });
+    // Remove bar when complete
+    this.load.on("complete", () => {
+      progressBar.destroy();
+    });
+
+    this.load.image("Logo", "./assets/rivalLogo3.png");
+    this.load.script(
+      "webfont",
+      "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"
+    );
+    this.load.image("cursor", "./assets/cursor.png");
+    this.load.audio("music", "./assets/music.mp3");
+    this.load.audio("dodge", "./assets/dodge.mp3");
+    this.load.audio("dead", "./assets/scoreSound.mp3");
     this.load.image("aquaHitbox", "./assets/aquaHitbox.png");
     this.load.image("vectoidBlueAttack", "./assets/vectoidBlueAttack.png");
     this.load.image("player", "./assets/player.png");
@@ -55,52 +140,10 @@ export class Nest extends Phaser.Scene {
     this.load.image("vectoidPurple", "./assets/vectoidPurple.png");
     this.load.image("purpleProjectile", "./assets/purpleProjectile.png");
     this.load.image("vectoidAqua", "./assets/vectoidAqua.png");
-  }
-
-  create() {
-    this.cameras.main.setPostPipeline("crt");
-    this.utility = new Util(this);
-    this.utility.ui();
-    //this.bgMusic = this.sound.add("music", { loop: true, volume: 1 });
-    //this.bgMusic.play();
-    /*this.fpsText = this.add.text(875, 0, "0", {
-      fontSize: "30px",
-      fontFamily: "VT323, monospace",
-      fill: "#24c50a",
-    });*/
-    this.score = 0;
-    this.player = new Player(this, 400, 300);
-    this.enemies = this.physics.add.group();
-    this.utility.attackListener();
-    this.hitboxes = this.physics.add.group();
-    this.utility.colliders();
-    this.utility.spawnTimer();
-    this.utility.endingEvents();
-  }
-
-  update() {
-    this.utility.uiUpdate();
-    this.utility.playerUpdate();
-    this.utility.entityCleanUp();
-    this.activeEnemies = this.enemies.countActive(true);
-    //this.fpsText.setText("fps:" + Math.floor(this.game.loop.actualFps));
-  }
-}
-
-export class Launch extends Phaser.Scene {
-  constructor() {
-    super({
-      key: "Launch",
-    });
-    this.ready = false;
-  }
-
-  preload() {
-    this.load.image("Logo", "./assets/rivalLogo3.png");
-    this.load.script(
-      "webfont",
-      "https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"
-    );
+    this.load.image("vectoidOlive", "./assets/vectoidOlive.png");
+    this.load.image("nukeIcon", "./assets/nukeIcon.png");
+    this.load.image("vectoidBluev2", "./assets/vectoidBluev2.png");
+    this.load.image("skull", "./assets/skull.png");
   }
 
   create() {
@@ -140,14 +183,22 @@ export class Launch extends Phaser.Scene {
       },
     });
   }
-
-  update() {}
 }
 
 const config = {
   type: Phaser.WEBGL,
   backgroundColor: "#1280a4ff",
-  scene: [Launch, MainMenu, Nest, Win, Bestiary, Rewards, GameOver],
+  scene: [
+    Launch,
+    MainMenu,
+    Nest,
+    Win,
+    Bestiary,
+    Rewards,
+    GameOver,
+    Challenge,
+    Achievements,
+  ],
   scale: {
     mode: Phaser.Scale.FIT,
     width: 1000,
@@ -159,6 +210,7 @@ const config = {
   },
   pipeline: {
     crt: CRTPipeline,
+    shatter: ShatterPipeline,
   },
 };
-new Phaser.Game(config);
+const Game = new Phaser.Game(config);

@@ -1,10 +1,6 @@
 import { Abilities } from "./Abilities.js";
 /*List of Bugs to squash:
-  Gray colliding with Orange Corpse
   Yellow corpse hitbox causing slows prematurely <- adjust spawn edge
-  
-  Features:
-  Allow the yellow entity to handle slowed substate itself instead of just passing a flag and making the affected entity handle it.
    
   */
 export class Entity extends Phaser.Physics.Arcade.Sprite {
@@ -23,6 +19,7 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
       effect = null,
       state = "moving",
       invulnerable = false,
+      threat = 1,
       spawnAngle = 0,
       turnRate = 0.02,
       value = 1,
@@ -32,12 +29,6 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
       corpseTimer = 300,
       dying = false,
       spawnProtection = false,
-      nuke = 0,
-      hp = 0,
-      name = "",
-      attackRange = 10,
-      isCorpse = false,
-      teleport = 0,
     } = {}
   ) {
     super(scene, x, y, texture);
@@ -63,19 +54,10 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
       invulnerable: invulnerable,
       dying: dying,
       spawnProtection: spawnProtection,
-      isCorpse: isCorpse,
-    };
-    this.combat = {
-      hp: hp,
-      attackRange: attackRange,
-    };
-    this.spec = {
-      nuke: nuke,
-      teleport: teleport,
     };
     this.meta = {
+      threat: threat,
       value: value,
-      name: name,
     };
     this.timers = {
       attackTimer: attackTimer,
@@ -88,21 +70,10 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
 
   deathAnim() {
     if (this.machine.dying === false) {
-      this.setPipeline("shatter");
       this.machine.dying = true;
       this.setVelocity(0, 0);
       this.body.enable = false;
-      if (this instanceof Player) {
-        const startDetune = this.scene.game.bgMusic.detune;
-        this.scene.tweens.add({
-          targets: { detune: startDetune },
-          detune: -1000,
-          duration: 1000,
-          onUpdate: (tween) => {
-            this.scene.game.bgMusic.setDetune(tween.getValue());
-          },
-        });
-      }
+      this.setPipeline("shatter");
       this.scene.tweens.add({
         targets: this,
         alpha: 0,
@@ -113,7 +84,6 @@ export class Entity extends Phaser.Physics.Arcade.Sprite {
             this.scene.events.emit("playerDied");
           } else if (this instanceof Hitbox) {
             this.scene.hitboxes.remove(this, true, true);
-            //this.hitbox = null;
           } else {
             this.destroy();
           }
@@ -128,13 +98,11 @@ export class Hitbox extends Entity {
     super(scene, x, y, texture, config);
   }
 }
-
 export class Player extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "player", {
       setCollideWorldBounds: true,
       speed: 240,
-      nuke: scene.registry.get("nuke") || 0,
     });
     //--HitBoxes--:
     //Matter.js :
@@ -196,24 +164,8 @@ export class Player extends Entity {
       this.machine.state = enemy.machine.effect;
     }
   }
-  deflect(enemy) {
-    const dx = enemy.x - this.sword.x;
-    const dy = enemy.y - this.sword.y;
-    const angle = Math.atan2(dy, dx);
-    const speed = enemy.movement.speed;
-    enemy.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
-    enemy.setRotation(angle);
-  }
 
   onHit(enemy) {
-    if (enemy.combat.hp > 0 && enemy.machine.substate != "injured") {
-      this.deflect(enemy);
-      enemy.machine.substate = "injured";
-      enemy.combat.hp--;
-      enemy.timers.coolDown = 30;
-    }
-    if (enemy.isCorpse) return;
-    if (!enemy.body.enable) return;
     //Deflect logic:
     if (
       !(enemy instanceof Hitbox) &&
@@ -224,40 +176,26 @@ export class Player extends Entity {
       this.sword.setAngularVelocity(1);
       this.timers.effectTimer = 30;
       if (enemy instanceof Aqua) {
-        this.deflect(enemy);
+        enemy.rotation += Math.PI / 2;
       }
     }
     //Kill logic
-    if (this.isDead(enemy)) {
-      this.scene.sound.play("dead");
-      enemy.machine.state = "dead";
-      this.onHitMeta(enemy);
-    }
-  }
-
-  isDead(enemy) {
     if (
       (enemy.machine.state !== "dead" &&
-        enemy.machine.invulnerable === false &&
-        enemy.combat.hp < 1) ||
+        enemy.machine.invulnerable === false) ||
       (enemy instanceof Hitbox && enemy.owner instanceof Purple)
     ) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  onHitMeta(enemy) {
-    this.scene.score += enemy.meta.value;
-    this.scene.nestSize = this.scene.nestSize - enemy.meta.value;
-    this.scene.utility.scorePopup(enemy.x, enemy.y, enemy.meta.value);
-    this.scene.events.emit("enemyKilled", enemy);
-    //handle clearNest
-    if (this.scene.nestSize <= 0 && this.scene.activeEnemies > 0) {
-      this.scene.enemies.children.iterate((enemy) => {
-        if (enemy) enemy.deathAnim();
-      });
+      enemy.machine.state = "dead";
+      //Handle meta
+      this.scene.score += enemy.meta.value;
+      this.scene.nestSize--;
+      this.scene.utility.scorePopup(enemy.x, enemy.y, enemy.meta.value);
+      //handle clearNest:
+      if (this.scene.nestSize <= 0 && this.scene.activeEnemies > 0) {
+        this.scene.enemies.children.iterate((enemy) => {
+          if (enemy) enemy.deathAnim();
+        });
+      }
     }
   }
 
@@ -312,7 +250,6 @@ export class Player extends Entity {
           target.worldX,
           target.worldY
         );
-
         if (distance > 10) {
           this.scene.physics.moveTo(
             this,
@@ -364,11 +301,9 @@ export class Player extends Entity {
 export class Green extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "vectoidGreen", {
-      name: "Green",
       state: "init",
       effect: "stunned",
     });
-    this.chance = Phaser.Math.Between(0, 1000);
   }
 
   onCollide(object) {
@@ -378,16 +313,6 @@ export class Green extends Entity {
     if (object instanceof Player) {
       object.machine.state = this.machine.effect;
       object.timers.effectTimer = 60;
-    }
-    if (object instanceof Green) {
-      let merge;
-      if (this.chance >= object.chance) {
-        this.machine.state = "dead";
-        object.machine.state = "dead";
-        const greenMerge = new GreenMerge(this.scene, this.x, this.y);
-        this.scene.enemies.add(greenMerge);
-        greenMerge.machine.state = "moving";
-      }
     }
   }
 
@@ -433,8 +358,6 @@ export class Blue extends Entity {
       value: 5,
       attackTimer: 30,
       turnRate: 0.01,
-      name: "Blue",
-      attackRange: 200,
     });
   }
 
@@ -485,14 +408,13 @@ export class Orange extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "vectoidOrange", {
       effect: "dead",
+      threat: "medium",
       value: 3,
       turnRate: 0.005,
-      name: "Orange",
     });
 
     this.hitbox = new Hitbox(scene, x, y, "orangeDead", { setCircle: 32 });
-    this.hitbox.isCorpse = true;
-    this.hitbox.body.checkCollision.none = true;
+    this.hitbox.body.enable = false;
     this.hitbox.visible = false;
     this.hitbox.owner = this;
   }
@@ -519,15 +441,47 @@ export class Orange extends Entity {
   update(target) {
     switch (this.machine.state) {
       case "moving":
-        this.ability.homing(this, target);
+        //this.ability.homing(this, target);
+        //Gather information about the target location:
+        const targetAngle = Phaser.Math.Angle.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+
+        //start turning visual sprite towards target, calculate that angle and store it in variable
+        this.rotation = Phaser.Math.Angle.RotateTo(
+          this.rotation,
+          targetAngle,
+          this.movement.turnRate
+        );
+        // calculate distance between current location and target
+        const distanceTo = Phaser.Math.Distance.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+
+        // travel in the direction of the sprite's current direction until it reaches the target
+        if (distanceTo > 10) {
+          this.setVelocity(
+            Math.cos(this.rotation) * this.movement.speed,
+            Math.sin(this.rotation) * this.movement.speed
+          );
+        } else {
+          this.setVelocity(0, 0);
+        }
         break;
       case "dead":
         if (this.hitbox && this.hitbox.machine.dying === false) {
           //place the hitbox over the enemy:
           this.hitbox.setPosition(this.x, this.y);
           //turn on hitbox:
-          this.hitbox.body.checkCollision.none = false;
           this.hitbox.visible = true;
+          this.hitbox.body.enable = true;
+          this.hitbox.body.onOverlap = true;
           //turn off enemy:
           this.visible = false;
           this.body.enable = false;
@@ -548,7 +502,6 @@ export class Yellow extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "vectoidYellow", {
       state: "init",
-      name: "Yellow",
     });
 
     //hitbox: (enabled on death)
@@ -557,7 +510,7 @@ export class Yellow extends Entity {
     });
     this.hitbox.setAlpha(0.5);
     this.hitbox.machine.invulnerable = true;
-    this.hitbox.body.checkCollision.none = true;
+    this.hitbox.body.enable = false;
     this.hitbox.visible = false;
     this.hitbox.owner = this;
     this.setScale(1.5);
@@ -610,7 +563,7 @@ export class Yellow extends Entity {
           this.hitbox.setPosition(this.x, this.y);
           //turn on hitbox:
           this.hitbox.visible = true;
-          this.hitbox.body.checkCollision.none = false;
+          this.hitbox.body.enable = true;
           this.hitbox.body.onOverlap = true;
           //turn off enemy:
           this.visible = false;
@@ -634,6 +587,7 @@ export class Gray extends Entity {
     super(scene, x, y, "vectoidGray", {
       effect: "dead",
       substate: "deflect",
+      threat: "medium",
       invulnerable: true,
       turnRate: 0.005,
       speed: 150,
@@ -656,7 +610,37 @@ export class Gray extends Entity {
     }
     switch (this.machine.state) {
       case "moving":
-        this.ability.homing(this, target);
+        //Gather information about the target location:
+        const targetAngle = Phaser.Math.Angle.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+
+        //start turning visual sprite towards target, calculate that angle and store it in variable
+        this.rotation = Phaser.Math.Angle.RotateTo(
+          this.rotation,
+          targetAngle,
+          this.movement.turnRate
+        );
+        // calculate distance between current location and target
+        const distanceTo = Phaser.Math.Distance.Between(
+          this.x,
+          this.y,
+          target.x,
+          target.y
+        );
+
+        // travel in the direction of the sprite's current direction until it reaches the target
+        if (distanceTo > 10) {
+          this.setVelocity(
+            Math.cos(this.rotation) * this.movement.speed,
+            Math.sin(this.rotation) * this.movement.speed
+          );
+        } else {
+          this.setVelocity(0, 0);
+        }
         break;
       case "dead":
         if (this.machine.invulnerable === false) {
@@ -664,6 +648,7 @@ export class Gray extends Entity {
         } else {
           this.machine.state = "moving";
         }
+
         break;
     }
   }
@@ -673,10 +658,10 @@ export class Purple extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "vectoidPurple", {
       coolDown: 180,
+      threat: "high",
       value: 5,
       speed: 130,
       turnRate: 0.005,
-      attackRange: 250,
     });
     //Hitbox:
     this.hitbox = new Hitbox(scene, this.x, this.y, "purpleProjectile", {
@@ -697,7 +682,7 @@ export class Purple extends Entity {
     if (
       object.machine.state != "dead" &&
       object != this &&
-      object.machine.invulnerable === false
+      object.machine.state.invulnerable === false
     ) {
       object.machine.state = "dead";
     }
@@ -774,7 +759,7 @@ export class Purple extends Entity {
           target.y
         );
         // travel in the direction of the sprite's current rotation until it reaches the correct distance
-        if (distanceTo > this.combat.attackRange) {
+        if (distanceTo > 250) {
           this.setVelocity(
             Math.cos(this.rotation) * this.movement.speed,
             Math.sin(this.rotation) * this.movement.speed
@@ -806,7 +791,7 @@ export class Purple extends Entity {
         let angleDiff = Phaser.Math.Angle.Wrap(angle - this.rotation);
         angleDiff = Math.abs(angleDiff);
         //travel away:
-        if (distance < this.combat.attackRange) {
+        if (distance < 250) {
           this.setVelocity(
             -Math.cos(this.rotation) * 100,
             -Math.sin(this.rotation) * 100
@@ -828,6 +813,7 @@ export class Purple extends Entity {
 export class Aqua extends Entity {
   constructor(scene, x, y) {
     super(scene, x, y, "vectoidAqua", {
+      threat: 3,
       turnRate: 0.02,
       value: 7,
       attackTimer: 0,
@@ -847,9 +833,12 @@ export class Aqua extends Entity {
       setCircle: 10,
     });
     this.hitbox3.owner = this;
+    this.hitboxes = [this.hitbox1, this.hitbox2, this.hitbox3];
+    this.scene.hitboxes.add(this.hitbox1);
+    this.scene.hitboxes.add(this.hitbox2);
+    this.scene.hitboxes.add(this.hitbox3);
 
     this.orbitAngle = 0;
-    this.hitboxes = [this.hitbox1, this.hitbox2, this.hitbox3];
   }
 
   onCollide(object) {
@@ -873,12 +862,11 @@ export class Aqua extends Entity {
   }
 
   update(target) {
-    // Orbiting hitbox logic
     if (this.hitboxes && this.hitboxes.length > 0) {
       this.orbitAngle += 0.05;
 
       if (this.timers.attackTimer > 0) {
-        this.machine.effect = "dead";
+        const circle = new Phaser.Geom.Circle(this.x, this.y, 40);
 
         this.hitboxes.forEach((hitbox, index) => {
           const angleOffset = (index * (2 * Math.PI)) / 3;
@@ -887,14 +875,13 @@ export class Aqua extends Entity {
           const y = this.y + Math.sin(hitboxAngle) * 40;
           hitbox.setPosition(x, y);
         });
-
         this.machine.invulnerable = true;
         this.machine.substate = "deflect";
-        this.movement.turnRate = 0.01;
         this.timers.attackTimer--;
       } else {
         // Normal state: smaller radius, vulnerable
         this.machine.effect = null;
+        const circle = new Phaser.Geom.Circle(this.x, this.y, 10);
 
         this.hitboxes.forEach((hitbox, index) => {
           const angleOffset = (index * (2 * Math.PI)) / 3;
@@ -983,155 +970,37 @@ export class Aqua extends Entity {
 //Combo Green/Green:
 export class GreenMerge extends Entity {
   constructor(scene, x, y) {
-    super(scene, x, y, "vectoidGreen", {
-      turnRate: 0.015,
+    super(scene, x, y, "vectoidGray", {
+      threat: "high",
+      turnRate: 0.03,
       value: 12,
       state: "spawning",
-      speed: 160,
     });
-    this.setScale(1.2);
   }
-  onCollide(object) {
-    if (object.machine.state != "dead") {
-      object.machine.state = "dead";
-    }
-  }
+  onCollide(object) {}
 
-  update(target) {
-    if (this.machine.substate === "slowed" && this.timers.effectTimer > 0) {
-      this.movement.speed = Math.max(this.movement.speed * 0.5, 80);
-      this.timers.effectTimer--;
-    } else {
-      this.machine.substate = null;
-    }
-    if (this.machine.spawnProtection && this.timers.coolDown > 0) {
-      this.timers.coolDown--;
-    } else {
-      this.machine.spawnProtection = false;
-    }
-
-    switch (this.machine.state) {
-      case "moving":
-        //Gather information about the target location:
-        const targetAngle = Phaser.Math.Angle.Between(
-          this.x,
-          this.y,
-          target.x,
-          target.y
-        );
-
-        //start turning visual sprite towards target, calculate that angle and store it in variable
-        this.rotation = Phaser.Math.Angle.RotateTo(
-          this.rotation,
-          targetAngle,
-          this.movement.turnRate
-        );
-        // calculate distance between current location and target
-        const distanceTo = Phaser.Math.Distance.Between(
-          this.x,
-          this.y,
-          target.x,
-          target.y
-        );
-
-        // travel in the sprite's current direction until it reaches the target
-        if (distanceTo > 10) {
-          this.setVelocity(
-            Math.cos(this.rotation) * this.movement.speed,
-            Math.sin(this.rotation) * this.movement.speed
-          );
-        } else {
-          this.setVelocity(0, 0);
-        }
-        break;
-      case "dead":
-        this.deathAnim();
-        break;
-    }
-  }
+  update(target) {}
 }
-//lancer
+
 export class Silver extends Entity {
   constructor(scene, x, y) {
-    super(scene, x, y, "enemyAqua", {
-      value: 10,
-      attackTimer: 40,
-      turnRate: 0.02,
-      speed: 200,
-      hp: 2,
-      name: "Blue",
-      attackRange: 250,
+    super(scene, x, y, "enemyGray", {
+      threat: "high",
+      turnRate: 0.03,
+      value: 12,
     });
   }
-
-  onCollide(object) {
-    if (
-      object.machine.effect &&
-      this.machine.state != object.machine.effect &&
-      object.machine.effect != "stunned"
-    ) {
-      this.machine.state = object.machine.effect;
-    }
-  }
-
-  update(target) {
-    if (this.machine.substate === "slowed" && this.timers.effectTimer > 0) {
-      this.movement.speed = 90;
-      this.timers.effectTimer--;
-    } else if (
-      this.machine.substate === "slowed" &&
-      this.timers.effectTimer < 1
-    ) {
-      this.machine.substate = null;
-      this.movement.speed = 180;
-    }
-    if (this.machine.substate === "injured" && this.timers.coolDown > 0) {
-      this.timers.coolDown--;
-      this.ability.homing(this, target);
-    } else if (
-      this.machine.substate === "injured" &&
-      this.timers.coolDown < 1
-    ) {
-      this.machine.substate = null;
-    }
-    switch (this.machine.state) {
-      case "moving":
-        this.setTexture("vectoidAqua");
-        this.ability.homing(this, target);
-        break;
-      case "attacking":
-        this.machine.substate = "deflecting";
-        this.setTexture("vectoidOrange");
-        this.machine.effect = "dead";
-        this.timers.attackTimer--;
-        this.setVelocity(
-          Math.cos(this.rotation) * this.movement.speed * 2,
-          Math.sin(this.rotation) * this.movement.speed * 2
-        );
-        if (this.timers.attackTimer <= 0) {
-          this.machine.state = "moving";
-          this.machine.effect = null;
-        }
-        break;
-      case "dead":
-        this.deathAnim();
-        break;
-    }
-  }
 }
-
-//armored blue
+//armored blue, takes 3 hits to kill
 export class Brown extends Entity {
   constructor(scene, x, y) {
-    super(scene, x, y, "vectoidBlue", {
+    super(scene, x, y, "enemyBlue", {
       value: 10,
-      attackTimer: 40,
-      turnRate: 0.02,
-      speed: 200,
-      hp: 2,
-      name: "Blue",
-      attackRange: 250,
+      attackTimer: 30,
+      turnRate: 0.03,
+      speed: 180,
     });
+    this.armor = 3;
   }
 
   onCollide(object) {
@@ -1149,22 +1018,14 @@ export class Brown extends Entity {
       this.movement.speed = 90;
       this.timers.effectTimer--;
     } else {
-      //this.machine.substate = null;
-      this.movement.speed = 180;
-    }
-    if (this.machine.substate === "injured" && this.timers.coolDown > 0) {
-      this.timers.coolDown--;
-      this.ability.homing(this, target);
-    } else {
       this.machine.substate = null;
+      this.movement.speed = 180;
     }
     switch (this.machine.state) {
       case "moving":
-        this.setTexture("vectoidBlue");
         this.ability.homing(this, target);
         break;
       case "attacking":
-        this.setTexture("vectoidBlueAttack");
         this.machine.effect = "dead";
         this.timers.attackTimer--;
         this.setVelocity(
@@ -1182,22 +1043,17 @@ export class Brown extends Entity {
     }
   }
 }
-/*Olive needs upgrades:
-  1. Combine threat and value into one datapoint. [x]
-  2. Fix visual/body scaling issues. [x]
-  3. Add HP variable that scales off of abosorbtion.[]
-  4. Add splitting mechanic where as hp is decreased, spawn additional Olives.[]
-*/
+//Almagam: onCollide kills other Entity and grows more powerful. Once a certain threshold is met, spawns additional Almagams.
+//threat determines what Entities it can absorb.
 export class Olive extends Entity {
-  constructor(scene, x, y, texture = "vectoidOlive") {
-    super(scene, x, y, texture, {
+  constructor(scene, x, y) {
+    super(scene, x, y, "vectoidOlive", {
+      threat: 3,
       turnRate: 0.015,
-      value: 5,
+      value: 3,
       speed: 160,
-      setCircle: 10,
+      setCircle: 16,
       coolDown: 30,
-      hp: 0,
-      spawnProtection: true,
     });
     this.absorptionCount = 0;
     this.spawnThreshold = 2;
@@ -1206,24 +1062,26 @@ export class Olive extends Entity {
   }
 
   onCollide(object) {
-    // Can absorb entities based on power level
+    // Can absorb entities based on threat
     if (
       object.machine.state !== "dead" &&
-      object.meta.value < this.meta.value &&
+      object.meta.threat <= this.meta.threat &&
       object.machine.invulnerable === false &&
       object.machine.spawnProtection === false
     ) {
-      //Absorb the entity
+      // Absorb the entity
       object.machine.state = "dead";
       this.absorptionCount++;
-      this.meta.value = this.meta.value + Math.floor(object.meta.value / 2);
+      this.meta.threat++;
 
-      //Grow in size and slow down slightly to allow tighter turns
-      this.movement.speed *= 0.9;
-      this.setScale(this.scale * this.grow);
-      this.body.setCircle(10 * this.grow);
+      // Grow in size and power
+      this.body.setCircle(Math.min(this.body.radius + 2, 40));
+      this.movement.speed -= 1;
+      this.meta.value += object.meta.value;
+      this.grow += 0.2;
+      this.setScale(this.grow);
 
-      // Spawn additional Amalgams when threshold is reached
+      // Spawn additional Olive when threshold is reached
       if (this.absorptionCount >= this.spawnThreshold) {
         this.spawnOlive();
         this.absorptionCount = 0;
@@ -1235,12 +1093,12 @@ export class Olive extends Entity {
   spawnOlive() {
     // Spawn a new Olive at a random nearby position
     const spawnAngle = Math.random() * Math.PI * 2;
-    const spawnDistance = 24;
+    const spawnDistance = 10;
     const spawnX = this.x + Math.cos(spawnAngle) * spawnDistance;
     const spawnY = this.y + Math.sin(spawnAngle) * spawnDistance;
 
-    const newAmalgam = new Olive(this.scene, spawnX, spawnY);
-    this.scene.enemies.add(newAmalgam);
+    const newOlive = new Olive(this.scene, spawnX, spawnY);
+    this.scene.enemies.add(newOlive);
   }
 
   update(target) {
@@ -1280,7 +1138,7 @@ export class Olive extends Entity {
           target.y
         );
 
-        // travel in the sprite's current direction until it reaches the target
+        // travel in the direction of the sprite's current direction until it reaches the target
         if (distanceTo > 10) {
           this.setVelocity(
             Math.cos(this.rotation) * this.movement.speed,
@@ -1292,6 +1150,7 @@ export class Olive extends Entity {
         break;
       case "dead":
         this.deathAnim();
+
         break;
     }
   }

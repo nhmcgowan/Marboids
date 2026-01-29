@@ -1,7 +1,6 @@
 export class Abilities {
-  constructor(user, target) {
+  constructor(user) {
     this.user = user;
-    this.target = target;
   }
 
   //Movement Methods:
@@ -23,7 +22,7 @@ export class Abilities {
     let angleDiff = Phaser.Math.Angle.Wrap(targetAngle - user.rotation);
     angleDiff = Math.abs(angleDiff);
 
-    if (range > 200 || angleDiff > Math.PI / 4) {
+    if (range > user.combat.attackRange || angleDiff > Math.PI / 6) {
       //slowly rotate towards targetAngle
       user.rotation = Phaser.Math.Angle.RotateTo(
         user.rotation,
@@ -35,20 +34,41 @@ export class Abilities {
         Math.cos(user.rotation) * user.movement.speed,
         Math.sin(user.rotation) * user.movement.speed
       );
-    } else {
-      //leap at target
-      //user.rotation = targetAngle <-- potential feature, snaps to player location
+    } else if (user.meta.name === "Blue") {
+      /*let chance = Phaser.Math.Between(0, 1);
+      if (chance > 0) {
+        user.rotation = targetAngle;
+      } <-- potential feature, snaps to player location */
       user.timers.attackTimer = 30;
       user.machine.state = "attacking";
     }
   }
 
-  dumb() {}
+  specNuke() {
+    if (this.user.spec.nuke > 0) {
+      this.user.scene.cameras.main.shake(200, 0.01);
+      this.user.spec.nuke--;
+      this.user.scene.registry.set("nuke", this.user.spec.nuke);
+      this.user.scene.enemies.children.iterate((enemy) => {
+        if (enemy.machine.state != "dead") {
+          this.user.scene.events.emit("enemyKilled", enemy);
+          enemy.machine.state = "dead";
+          this.user.scene.score += enemy.meta.value;
+          this.user.scene.nestSize -= enemy.meta.value;
+          this.user.scene.utility.scorePopup(
+            enemy.x,
+            enemy.y,
+            enemy.meta.value
+          );
+        }
+      });
+    }
+  }
 
-  //Attacking Methods:
-  blue() {}
-
-  aqua() {}
-
-  purple() {}
+  specTeleport(target) {
+    this.user.setPosition(target.x, target.y);
+    if (!this.user.scene.dodgeSound.isPlaying) {
+      this.user.scene.dodgeSound.play();
+    }
+  }
 }

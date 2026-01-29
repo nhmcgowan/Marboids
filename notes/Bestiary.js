@@ -27,7 +27,7 @@ Threat: High
 Ability: Lance, Deflect (Stuns when hit while attacking)
 
 -Elite Hunter- (Elite)
-Threat: High
+Threat: High.
 Ability: Lunge, Armor, Shy (Takes 3 hits to kill, flees when 1 hit left, regenerates armor)
 
 -Frost-

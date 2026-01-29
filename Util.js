@@ -5,26 +5,31 @@ import {
   Yellow,
   Gray,
   Purple,
+  Brown,
   Aqua,
   Olive,
+  Silver,
 } from "./Entities.js";
 
 export class Util {
   constructor(scene) {
     this.scene = scene;
     this.uiReady = false;
+    this.roster = [Aqua]; //[Green, Green, Green];
+    this.dugout = []; //[Yellow, Orange, Blue, Purple, Gray, Aqua, Olive, Silver, Brown];
   }
+
   debug(targets = []) {
     targets.forEach((target) => {
       const debugGraphics = this.scene.add.graphics();
-      debugGraphics.lineStyle(2, 0xff0000, 1); // Red outline
+      debugGraphics.lineStyle(2, 0xff0000, 1);
       const bounds = target.getBounds();
       debugGraphics.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
       debugGraphics.fillStyle(0xff0000, 1);
       debugGraphics.fillCircle(target.x, target.y, 2);
     });
   }
-  //UI:
+  //User Interface:
   scorePopup(x, y, value) {
     const popup = this.scene.add
       .text(x, y, `฿${value}`, {
@@ -51,58 +56,46 @@ export class Util {
     if (this.scene.healthBar) this.scene.healthBar.destroy();
     this.uiReady = false;
     this.popup = false;
-    WebFont.load({
-      google: {
-        families: ["VT323"],
-      },
-      active: () => {
-        this.scene.scoreText = this.scene.add
-          .text(50, 28, "00", {
-            fontSize: "30px",
-            fontFamily: "VT323, monospace",
-            fill: "#24c50a",
-          })
-          .setOrigin(0.5, 0.5);
 
-        this.scene.enemiesLeft = this.scene.add
-          .text(500, 32, `${this.scene.nestSize}`, {
-            fontSize: "30px",
-            fontFamily: "VT323, monospace",
-            fill: "#24c50a",
-          })
-          .setOrigin(0.5, 0.5);
+    this.scene.scoreText = this.scene.add
+      .text(50, 28, "00", {
+        fontSize: "30px",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
+      })
+      .setOrigin(0.5, 0.5);
 
-        this.scene.quit = this.scene.add
-          .text(980, 16, "X", {
-            fontSize: "48px",
-            fontFamily: "VT323, monospace",
-            fontStyle: "bold",
-            fill: "#24c50a",
-          })
-          .setOrigin(0.5, 0.5)
-          .setInteractive();
-        const esc = this.scene.input.keyboard.addKey(
-          Phaser.Input.Keyboard.KeyCodes.ESC
-        );
-        esc.on("down", () => {
-          this.scene.scene.start("MainMenu");
-        });
-        this.scene.quit.on("pointerdown", () => {
-          this.scene.scene.start("MainMenu");
-        });
-        this.scene.quit.setDepth(1);
-        this.scene.enemiesLeft.setDepth(1);
-        this.scene.scoreText.setDepth(1);
-        this.scene.healthBar = this.scene.add.graphics();
-        const barWidth = this.scene.nestSize;
-        const gameWidth = this.scene.sys.game.config.width; // or just 1000 if hardcoded
-        const x = (gameWidth - barWidth) / 2;
-
-        this.scene.healthBar.setPosition(x, 0);
-        this.scene.enemiesLeft.setPosition(x - 4, 22);
-        this.uiReady = true;
-      },
+    this.scene.intensity = this.scene.add.text(50, 50, `Error`, {
+      fontSize: "30px",
+      fontFamily: "VT323, monospace",
+      fill: "#24c50a",
     });
+
+    this.scene.enemiesLeft = this.scene.add
+      .text(500, 32, `${this.scene.nestSize}`, {
+        fontSize: "30px",
+        fontFamily: "VT323, monospace",
+        fill: "#24c50a",
+      })
+      .setOrigin(0.5, 0.5);
+
+    const esc = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ESC
+    );
+    esc.on("down", () => {
+      this.scene.scene.start("MainMenu");
+    });
+
+    this.scene.enemiesLeft.setDepth(1);
+    this.scene.scoreText.setDepth(1);
+    this.scene.healthBar = this.scene.add.graphics();
+    const barWidth = this.scene.nestSize;
+    const gameWidth = this.scene.sys.game.config.width;
+    const x = (gameWidth - barWidth) / 2;
+
+    this.scene.healthBar.setPosition(x, 0);
+    this.scene.enemiesLeft.setPosition(x - 4, 22);
+    this.uiReady = true;
   }
 
   uiUpdate() {
@@ -114,7 +107,7 @@ export class Util {
     )
       return;
     this.scene.healthBar.clear();
-    if (this.scene.nestSize < 500) {
+    if (this.scene.nestSize < 1000) {
       this.scene.healthBar.fillStyle(0x24c50a);
       this.scene.healthBar.fillRect(15, 15, this.scene.nestSize, 15);
       this.scene.enemiesLeft.setText(this.scene.nestSize);
@@ -129,11 +122,12 @@ export class Util {
   //Spawn/Despawn Enemies:
 
   /* SpawnEnemy/Nest Management v2:
-    A. limit the number of certain high threat enemies on the screen
-    B. Gradually add more difficult enemies to the spawn pool
-    C. Make some enemies rarer than others
+    A. Create new scaling system that is simpler to manage and extend [X]
+    B. Gradually add more difficult enemies to the spawn pool [X]
+    C. Make some enemies rarer than others []
  */
-  spawnEnemy(width = 900, height = 750, margin = 32) {
+
+  spawnEnemy(width = 1000, height = 750, margin = 32) {
     if (
       this.scene.activeEnemies < this.scene.strength &&
       this.scene.nestSize > 0
@@ -163,27 +157,22 @@ export class Util {
         angleCenter + spread
       );
 
-      let chance = Phaser.Math.Between(0, 8);
-      if (chance === 0) {
-        enemy = new Blue(this.scene, x, y);
-      } else if (chance === 1) {
-        enemy = new Orange(this.scene, x, y);
-      } else if (chance === 2) {
-        enemy = new Yellow(this.scene, x, y);
-      } else if (chance === 3) {
-        enemy = new Gray(this.scene, x, y);
-      } else if (chance === 4) {
-        enemy = new Purple(this.scene, x, y);
-      } else if (chance === 5) {
-        enemy = new Aqua(this.scene, x, y);
-      } else if (chance === 6) {
-        enemy = new Green(this.scene, x, y);
-        //enemy = new Olive(this.scene, x, y);
-      } else {
-        enemy = new Green(this.scene, x, y);
+      let egg = Phaser.Utils.Array.GetRandom(this.roster);
+
+      enemy = new egg(this.scene, x, y);
+
+      let chance = Phaser.Math.Between(1, 20);
+
+      if (chance > 19 && this.dugout.length > 0) {
+        let choice = Phaser.Utils.Array.GetRandom(this.dugout);
+        Phaser.Utils.Array.Remove(this.dugout, choice);
+        Phaser.Utils.Array.Add(this.roster, choice);
       }
-      const speed = 200;
-      enemy.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+
+      enemy.body.setVelocity(
+        Math.cos(angle) * enemy.movement.speed,
+        Math.sin(angle) * enemy.movement.speed
+      );
       enemy.setRotation(angle);
       if (enemy.machine.state === "init") {
         enemy.init.spawnAngle = angle;
@@ -195,28 +184,48 @@ export class Util {
     }
   }
 
-  spawnTimer() {
-    this.scene.spawnTimer = this.scene.time.addEvent({
-      delay: this.scene.scaler,
-      callback: () => this.spawnEnemy(),
-      loop: true,
-    });
+  spawnTimer(time) {
+    if (
+      this.scene.nestSize <= this.scene.initSize &&
+      this.scene.spawnDelay > 1000
+    ) {
+      this.scene.spawnDelay -= 100;
+      this.scene.initSize -= this.scene.initSize / 10;
+    }
+    this.scene.currentTime = time;
+    if (time - this.scene.lastSpawn > this.scene.spawnDelay) {
+      let chance = Phaser.Math.Between(0, 3);
+      if (chance === 1 || chance === 0) {
+        this.spawnEnemy();
+      } else if (chance === 2) {
+        this.spawnEnemy();
+        this.spawnEnemy();
+      } else {
+        this.spawnEnemy();
+        this.spawnEnemy();
+        this.spawnEnemy();
+      }
+      this.scene.lastSpawn = time;
+      this.scene.intensity.setText(
+        `spawnDelay: ${this.scene.spawnDelay}\n${Math.floor(
+          this.scene.initSize
+        )}\n${this.scene.player.spec.nuke}`
+      );
+    }
+  }
 
-    this.scene.time.addEvent({
-      delay: 10000,
-      callback: () => {
-        if (this.scene.scaler > 2000) {
-          this.scene.scaler -= 500;
-          // Recreate the spawn timer with the updated delay
-          this.scene.spawnTimer.remove();
-          this.scene.spawnTimer = this.scene.time.addEvent({
-            delay: this.scene.scaler,
-            callback: () => this.spawnEnemy(),
-            loop: true,
-          });
+  enemyUpdate() {
+    this.scene.enemies.children.iterate((enemy) => {
+      if (enemy) {
+        enemy.update(this.scene.player);
+      }
+    });
+    this.scene.hitboxes.children.iterate((hitbox) => {
+      if (hitbox) {
+        if (hitbox.update()) {
+          hitbox.update(this.scene.player);
         }
-      },
-      loop: true,
+      }
     });
   }
 
@@ -224,8 +233,6 @@ export class Util {
     const margin = 32;
     this.scene.enemies.children.iterate((enemy) => {
       if (enemy) {
-        enemy.update(this.scene.player);
-        // Despawn enemies if they leave play area:
         if (
           enemy.x < -margin ||
           enemy.x > 1000 + margin ||
@@ -236,13 +243,11 @@ export class Util {
         }
       }
     });
-    //Update hitbox group:
+
     this.scene.hitboxes.children.iterate((hitbox) => {
       if (hitbox) {
-        if (hitbox.update()) {
-          hitbox.update(this.scene.player);
+        if (hitbox) {
         }
-        // Despawn hitboxes if they leave play area:
         if (
           hitbox.x < -margin ||
           hitbox.x > 1000 + margin ||
@@ -260,6 +265,9 @@ export class Util {
   }
   //Player Mechanics:
   attackListener() {
+    const space = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE
+    );
     this.scene.input.on("pointerdown", () => {
       if (
         this.scene.player.machine.state === "moving" &&
@@ -271,7 +279,19 @@ export class Util {
         this.scene.player.timers.attackTimer = 30;
       }
     });
+    space.on("down", () => {
+      this.scene.player.ability.specNuke();
+    });
+
+    const Q = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.Q
+    );
+
+    Q.on("down", () => {
+      this.scene.player.ability.specTeleport(this.scene.input.activePointer);
+    });
   }
+
   playerUpdate() {
     const target = this.scene.input.activePointer;
     this.scene.player.update(target);
@@ -325,8 +345,7 @@ export class Util {
     );
   }
 
-  //Meta: (Saving, Player Data)
-
+  //Meta: (Saving, Player Data, End Game)
   endingEvents() {
     this.scene.events.once("playerDied", () => {
       const totalDeaths = this.scene.registry.get("totalDeaths") || 0;
